@@ -1,0 +1,27 @@
+name: Live recorder
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/20 * * * *'
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: live-recorder
+  cancel-in-progress: false
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Record TSE count and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "eleicao-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node recorder/cloud.mjs
