@@ -275,21 +275,25 @@ export function fitAll(muns) {
 export function countedFlows(muns, Tof) {
   const S = SOURCES.length, D = DESTS.length;
   const flows = Array.from({ length: S }, () => new Array(D).fill(0)), tot = new Array(S).fill(0);
+  let n = 0;
   for (const m of muns) {
     const q = m.r2, r = m.r1;
     if (!q || !q.est || !q.c || !r.te) continue;
     const f = q.est / r.te, T = Tof(m);
     xOf(r).forEach((v, s) => { tot[s] += v * f; T[s].forEach((p, d) => (flows[s][d] += v * f * p)); });
+    n++;
   }
-  return { T: flows.map((row, i) => row.map(v => (tot[i] ? v / tot[i] : 0))), flows, tot };
+  return { T: flows.map((row, i) => row.map(v => (tot[i] ? v / tot[i] : 0))), flows, tot, n };
 }
 
-// Estimate = first variant; range = spread across all variants.
+// Estimate = first variant; range = spread across all variants. `fits` are national
+// (see fitAll), so any scope - even a one-municipality DF - gets rates.
 export function transferRates(muns, fits) {
   const runs = fits.variants.map(([nm, Tof]) => ({ nm, ...countedFlows(muns, Tof) }));
   const main = runs[0];
+  if (!main.n) return null;
   const range = main.T.map((row, i) => row.map((_, d) => [Math.min(...runs.map(r => r.T[i][d])), Math.max(...runs.map(r => r.T[i][d]))]));
-  return { ...main, range, models: runs.map(r => r.nm), n: fits.n };
+  return { ...main, range, models: runs.map(r => r.nm), nFit: fits.n };
 }
 
 // Forecast bridge: every municipality's 1st-round result is pushed through its
@@ -323,4 +327,24 @@ export function predict(muns, fits) {
   const runs = fits.variants.map(([nm, Tof]) => ({ nm, ...bridge(muns, Tof) }));
   const shares = runs.map(r => r.share);
   return { main: runs[0], runs, lo: Math.min(...shares), hi: Math.max(...shares) };
+}
+
+// ---- Forecast history ------------------------------------------------------
+// One point per scope: [predicted Lula share, low, high, Lula share of the raw count,
+// share of the electorate counted]. Fits are national and reused for every scope.
+export const SCOPES = ['br', ...REGIONS.map(r => r.id), ...UFS.filter(u => u !== 'zz')];
+export const FORECAST_COLS = ['t', 'p', 'lo', 'hi', 'raw', 'cnt'];
+const r4 = v => Math.round(v * 1e4) / 1e4;
+export function forecastPoint(r1, r2) {
+  const muns = joinMunicipalities(r1, r2), fits = fitAll(muns), out = {};
+  if (!fits) return out;
+  for (const sc of SCOPES) {
+    const set = new Set(scopeUfs(sc)), ms = muns.filter(m => set.has(m.uf));
+    let L = 0, F = 0, est = 0, te = 0;
+    for (const m of ms) { te += m.r1.te; if (m.r2?.est) { L += m.r2.v13; F += m.r2.v22; est += m.r2.est; } }
+    if (!est || !(L + F)) continue;
+    const pr = predict(ms, fits);
+    out[sc] = [r4(pr.main.share), r4(pr.lo), r4(pr.hi), r4(L / (L + F)), r4(est / te)];
+  }
+  return out;
 }

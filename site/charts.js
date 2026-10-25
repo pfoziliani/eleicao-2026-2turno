@@ -73,13 +73,15 @@ export function legend(host, items) {
     const s = h('span', { class: 'item' }, host);
     const sw = h('span', { class: it.line ? 'ln' : 'sw' }, s);
     sw.style.background = `var(${it.color})`;
+    if (it.faint) sw.style.opacity = 0.45;
+    if (it.band) sw.style.opacity = 0.18;
     s.appendChild(document.createTextNode(it.nm));
   }
 }
 
 // ---- Line chart with crosshair ----
 // series: [{ id, nm, color, pts: [[t, v], ...] }]
-export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [], endLabels = true, tipFmt = yFmt, tipExtra }) {
+export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [], endLabels = true, tipFmt = yFmt, endFmt = yFmt, tipExtra }) {
   host.replaceChildren();
   const pts = series.flatMap(s => s.pts);
   if (pts.length < 2) { h('p', { class: 'note' }, host, 'Aguardando mais capturas…'); return; }
@@ -99,10 +101,18 @@ export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [],
     if (r.nm) el('text', { x: m.l + 4, y: y(r.v) - 4, class: 'tick' }, svg, r.nm);
   }
   const ends = [];
+  // Range bands (e.g. spread across model variants) go under every line.
+  for (const s of series) {
+    if (!s.band?.length) continue;
+    const up = s.band.map((b, i) => (i ? 'L' : 'M') + x(b[0]).toFixed(1) + ',' + y(b[2]).toFixed(1)).join('');
+    const dn = [...s.band].reverse().map(b => 'L' + x(b[0]).toFixed(1) + ',' + y(b[1]).toFixed(1)).join('');
+    el('path', { d: up + dn + 'Z', fill: `var(${s.color})`, 'fill-opacity': 0.14, stroke: 'none' }, svg);
+  }
   for (const s of series) {
     if (!s.pts.length) continue;
     const d = s.pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1]).toFixed(1)).join('');
-    el('path', { d, class: 'line', stroke: `var(${s.color})` }, svg);
+    el('path', { d, class: 'line', stroke: `var(${s.color})`, ...(s.faint ? { 'stroke-width': 1.5, 'stroke-opacity': 0.45 } : {}) }, svg);
+    if (s.faint) continue;
     const last = s.pts[s.pts.length - 1];
     el('circle', { cx: x(last[0]), cy: y(last[1]), r: 4, fill: `var(${s.color})`, stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
     ends.push({ s, yy: y(last[1]), v: last[1] });
@@ -111,7 +121,7 @@ export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [],
   if (endLabels) {
     ends.sort((a, b) => a.yy - b.yy);
     const clear = ends.every((e, i) => i === 0 || e.yy - ends[i - 1].yy >= 14);
-    if (clear) for (const e of ends) el('text', { x: W - m.r + 8, y: e.yy + 4, class: 'lbl' }, svg, `${e.s.nm} ${yFmt(e.v)}`);
+    if (clear) for (const e of ends) el('text', { x: W - m.r + 8, y: e.yy + 4, class: 'lbl' }, svg, `${e.s.nm} ${endFmt(e.v)}`);
   }
   const hair = el('line', { y1: m.t, y2: H - m.b, class: 'xhair', visibility: 'hidden' }, svg);
   const dots = series.map(s => el('circle', { r: 4, fill: `var(${s.color})`, stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden', 'pointer-events': 'none' }, svg));

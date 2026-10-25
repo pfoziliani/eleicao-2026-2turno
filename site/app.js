@@ -3,7 +3,7 @@ import { h, legend, lineChart, contribChart, mixBars, scatter, dumbbell, swingBa
 
 const TSE = 'https://resultados.tse.jus.br/oficial/ele2026/6258/dados';
 const LIVE_EVERY = 30e3, AGG_EVERY = 60e3;
-const S = { scope: 'br', r1: null, r2: null, tl: null, live: {}, liveRows: {}, lastLive: 0, lastAgg: 0, sort: { k: 'ts', dir: -1 } };
+const S = { scope: 'br', r1: null, r2: null, tl: null, fc: null, live: {}, liveRows: {}, lastLive: 0, lastAgg: 0, sort: { k: 'ts', dir: -1 } };
 
 const $ = id => document.getElementById(id);
 const nf = new Intl.NumberFormat('pt-BR');
@@ -49,9 +49,10 @@ async function loadLive() {
 
 async function loadAgg() {
   const q = '?t=' + Date.now();
-  const [r2, tl] = await Promise.allSettled([getJSON('data/r2-mun.json' + q), getJSON('data/timeline.json' + q)]);
+  const [r2, tl, fc] = await Promise.allSettled([getJSON('data/r2-mun.json' + q), getJSON('data/timeline.json' + q), getJSON('data/forecast.json' + q)]);
   if (r2.status === 'fulfilled') { S.r2 = r2.value; S.muns = A.joinMunicipalities(S.r1, S.r2); }
   if (tl.status === 'fulfilled') S.tl = tl.value;
+  if (fc.status === 'fulfilled') S.fc = fc.value;
   S.lastAgg = Date.now();
 }
 
@@ -77,13 +78,19 @@ function sumStates(ufs) {
   return s;
 }
 
-// Os ajustes do modelo custam ~0,2 s: refeitos só quando muda o recorte ou chegam dados novos.
-let modelCache = { key: null };
+// O modelo é ajustado uma vez para o país (~0,2 s) a cada dado novo; cada recorte só
+// reaplica essas taxas aos seus municípios, então trocar de recorte é instantâneo.
+let fitCache = { key: null }, modelCache = { key: null };
+function nationalFits() {
+  const key = S.r2?.updated || '';
+  if (fitCache.key !== key) fitCache = { key, fits: S.muns ? A.fitAll(S.muns) : null };
+  return fitCache.fits;
+}
 function models() {
   const key = S.scope + '|' + (S.r2?.updated || '');
   if (modelCache.key !== key) {
-    const ms = scopeMuns(S.scope), fits = A.fitAll(ms);
-    modelCache = { key, rates: fits && A.transferRates(ms, fits), pred: fits && A.predict(ms, fits) };
+    const ms = scopeMuns(S.scope), fits = nationalFits();
+    modelCache = { key, rates: fits && A.transferRates(ms, fits), pred: fits && ms.some(m => m.r2?.est) ? A.predict(ms, fits) : null };
   }
   return modelCache;
 }
@@ -104,6 +111,10 @@ function areasFor(scope) {
   return [{ id: scope, nm: A.UF[scope].nm, ufs: [scope], color: '--c1' }];
 }
 const scopeName = s => (s === 'br' ? 'Brasil' : A.REGIONS.find(r => r.id === s)?.nm || A.UF[s].nm);
+// Artigo de cada lugar, para "no Nordeste", "na Bahia", "em São Paulo", "do Brasil".
+const ART = { br: 'o', N: 'o', NE: 'o', CO: 'o', SE: 'o', S: 'o', EX: 'o', ac: 'o', am: 'o', ap: 'o', ba: 'a', ce: 'o', df: 'o', es: 'o', ma: 'o', pa: 'o', pb: 'a', pi: 'o', pr: 'o', rj: 'o', rn: 'o', rs: 'o', to: 'o' };
+const emName = s => ({ o: 'no ', a: 'na ' })[ART[s]] ?? 'em ';
+const inScope = s => emName(s) + scopeName(s), ofScope = s => (({ o: 'do ', a: 'da ' })[ART[s]] ?? 'de ') + scopeName(s);
 const scopeMuns = s => { const set = new Set(A.scopeUfs(s)); return (S.muns || []).filter(m => set.has(m.uf)); };
 
 // ---------- renderização ----------
@@ -181,13 +192,13 @@ function renderForecast() {
   const head = $('fcHead'), tb = $('fcBridge'), note = $('fcNote');
   head.replaceChildren(); tb.replaceChildren(); note.textContent = '';
   const pr = models().pred;
-  if (!pr) { h('p', { class: 'note' }, head, 'Ainda não há municípios apurados suficientes neste recorte para estimar (mínimo de 25).'); return; }
+  if (!pr) { h('p', { class: 'note' }, head, 'Ainda não há votos apurados neste recorte.'); return; }
   const b = pr.main, L = b.total[0], F = b.total[1], sL = L / (L + F), win = sL >= 0.5;
   const big = h('div', { class: 'fc-big' }, head);
   h('span', { class: 'key' }, big).style.background = `var(${win ? '--lula' : '--flavio'})`;
   big.append(S.scope === 'br'
     ? `${win ? 'Lula' : 'Flávio Bolsonaro'} vence com ${pct(win ? sL : 1 - sL, 1)} dos votos válidos`
-    : `${win ? 'Lula' : 'Flávio'} à frente em ${scopeName(S.scope)}: ${pct(win ? sL : 1 - sL, 1)}`);
+    : `${win ? 'Lula' : 'Flávio'} à frente ${inScope(S.scope)}: ${pct(win ? sL : 1 - sL, 1)}`);
   const counted = scopeMuns(S.scope).reduce((a, m) => [a[0] + (m.r2?.est || 0), a[1] + m.r1.te], [0, 0]);
   const lo = dec(100 * pr.lo, 1), hi = dec(100 * pr.hi, 1);
   const range = lo === hi ? `os 3 modelos dão Lula ${lo}%` : `faixa entre os 3 modelos: Lula ${lo}–${hi}%`;
@@ -196,6 +207,7 @@ function renderForecast() {
   h('div', { class: 'seg lula' }, split).style.width = `calc(${100 * sL}% - 1px)`;
   h('div', { class: 'seg flavio' }, split).style.width = `calc(${100 * (1 - sL)}% - 1px)`;
   h('div', { class: 'half' }, split);
+  renderForecastHistory();
 
   const rows = [
     { nm: '1º turno (4/10)', L: b.r1[0], F: b.r1[1], kind: 'base' },
@@ -238,6 +250,41 @@ function renderForecast() {
     }
   }
   note.textContent = `Saldo sobre o 1º turno: Lula ${signedK(L - b.r1[0])} · Flávio ${signedK(F - b.r1[1])}. “Não repetiram o voto” = migraram para o adversário, anularam/votaram em branco ou não foram votar. Percentuais entre parênteses: fatia de cada grupo do 1º turno que foi para o candidato. Estimativa de modelo, não pesquisa — a margem real pode ser diferente, sobretudo no começo da apuração.`;
+}
+
+// Série da previsão: um ponto a cada atualização dos dados municipais (~2 min).
+function renderForecastHistory() {
+  const rows = S.fc?.series?.[S.scope] || [], co = $('fcCallout');
+  co.replaceChildren();
+  legend($('lgFc'), [
+    { nm: 'Lula (previsão)', color: '--lula', line: true }, { nm: 'Flávio (previsão)', color: '--flavio', line: true },
+    { nm: 'Faixa entre modelos', color: '--ink2', band: true },
+    { nm: 'Lula (contagem)', color: '--lula', line: true, faint: true }, { nm: 'Flávio (contagem)', color: '--flavio', line: true, faint: true },
+  ]);
+  if (rows.length < 2) { $('chFc').replaceChildren(); h('p', { class: 'note' }, $('chFc'), 'A série aparece a partir da segunda atualização neste recorte.'); return; }
+  const P = 100, at = new Map(rows.map(r => [r[0], r]));
+  const series = [
+    { id: 'pl', nm: 'Lula', color: '--lula', pts: rows.map(r => [r[0], P * r[1]]), band: rows.map(r => [r[0], P * r[2], P * r[3]]) },
+    { id: 'pf', nm: 'Flávio', color: '--flavio', pts: rows.map(r => [r[0], P * (1 - r[1])]), band: rows.map(r => [r[0], P * (1 - r[3]), P * (1 - r[2])]) },
+    { id: 'rl', nm: 'Lula (contagem)', color: '--lula', faint: true, pts: rows.map(r => [r[0], P * r[4]]) },
+    { id: 'rf', nm: 'Flávio (contagem)', color: '--flavio', faint: true, pts: rows.map(r => [r[0], P * (1 - r[4])]) },
+  ];
+  const vals = rows.flatMap(r => [r[2], r[3], r[4], 1 - r[2], 1 - r[3], 1 - r[4]].map(v => P * v));
+  const lo = Math.min(49, Math.floor(Math.min(...vals) - 0.5)), hi = Math.max(51, Math.ceil(Math.max(...vals) + 0.5));
+  lineChart($('chFc'), {
+    series, y0: lo, y1: hi, yFmt: v => dec(v, 0) + '%', tipFmt: v => dec(v, 2) + '%', endFmt: v => dec(v, 1) + '%', refs: [{ v: 50 }], height: 240,
+    tipExtra: t => { const r = at.get(t); return r ? `${pct(r[5], 0)} do eleitorado apurado · faixa Lula ${dec(P * r[2], 1)}–${dec(P * r[3], 1)}%` : ''; },
+  });
+  const first = rows[0], last = rows[rows.length - 1];
+  const ps = rows.map(r => r[1]), mn = Math.min(...ps), mx = Math.max(...ps);
+  const lulaAhead = rows.filter(r => r[1] >= 0.5).length;
+  const tMin = rows[ps.indexOf(mn)][0], tMax = rows[ps.indexOf(mx)][0];
+  co.append(`Previsão para Lula: ${pct(first[1], 1)} às ${fmtTime(first[0])} (${pct(first[5], 0)} do eleitorado apurado) → `);
+  h('b', {}, co, `${pct(last[1], 1)} às ${fmtTime(last[0])}`);
+  co.append(` (${pct(last[5], 0)} apurado), variação de ${pp(100 * (last[1] - first[1]))}; mínimo ${pct(mn, 1)} (${fmtTime(tMin)}), máximo ${pct(mx, 1)} (${fmtTime(tMax)}). `);
+  const who = S.scope === 'br' ? 'o vencedor previsto' : 'à frente na previsão';
+  h('b', {}, co, lulaAhead === rows.length ? `Lula foi ${who} em todas as ${rows.length} atualizações.` : lulaAhead === 0 ? `Flávio foi ${who} em todas as ${rows.length} atualizações.` : `A previsão mudou de lado: Lula ${who} em ${lulaAhead} de ${rows.length} atualizações.`);
+  co.append(` Na contagem bruta, Lula foi de ${pct(first[4], 1)} para ${pct(last[4], 1)} no mesmo período.`);
 }
 
 function renderCompare() {
@@ -288,8 +335,8 @@ function renderTransfers() {
   legend($('trLegend'), A.DESTS.map((d, i) => ({ nm: d.nm + ' (2º turno)', color: DEST_COLOR[i] })));
   const host = $('trBars');
   host.replaceChildren();
-  if (!fit) { h('p', { class: 'note' }, host, 'Ainda não há municípios apurados suficientes neste recorte (mínimo de 25).'); return; }
-  $('trDesc').textContent = `Como cada grupo de eleitores de 4/10 parece estar se dividindo em 25/10, inferido a partir de como os resultados mudaram em ${nf.format(fit.n)} municípios apurados (${scopeName(S.scope)}; modelo ${fit.models[0]}). É uma estimativa ecológica de fluxos agregados, não uma pesquisa com eleitores: quando as variantes do modelo divergem, a faixa abaixo de cada barra mostra o quanto. Trate como indicativo, sobretudo no início da apuração.`;
+  if (!fit) { h('p', { class: 'note' }, host, 'Ainda não há votos apurados neste recorte.'); return; }
+  $('trDesc').textContent = `Como cada grupo de eleitores de 4/10 parece estar se dividindo em 25/10 ${fit.n === 1 ? 'no município apurado' : `nos ${nf.format(fit.n)} municípios apurados`} ${ofScope(S.scope)}, com taxas inferidas de como os resultados mudaram nos ${nf.format(fit.nFit)} municípios apurados do país (modelo ${fit.models[0]}: cada estado com seu ajuste, ou o da região se tiver poucos municípios). É uma estimativa ecológica de fluxos agregados, não uma pesquisa com eleitores: quando as variantes do modelo divergem, a faixa abaixo de cada barra mostra o quanto. Trate como indicativo, sobretudo no início da apuração.`;
   const order = [2, 3, 4, 5, 6, 7, 0, 1];
   order.forEach((i, k) => {
     if (k === 6) h('div', { class: 'tr-sep' }, host);

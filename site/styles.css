@@ -216,3 +216,5 @@ svg .col:hover .colbg { fill: var(--wash); }
 .bridge tr.base .bval, .bridge tr.total .bval { color: var(--ink); font-size: 13.5px; }
 .bridge tr.total td { border-top: 1px solid var(--axis); border-bottom: 0; }
 @media (max-width: 760px) { .bridge td.name { min-width: 150px; } .bridge td.bcell { width: auto; } }
+
+.fc-hist { margin: 4px 0 18px; }

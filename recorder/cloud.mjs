@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { R2, uUrl, abUrl, getJSON, extract, pool } from './tse.mjs';
+import { forecastPoint, FORECAST_COLS } from '../site/analysis.js';
 
 const DATA = 'site/data';
 const UFS = ['ac', 'al', 'am', 'ap', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mg', 'ms', 'mt', 'pa', 'pb', 'pe', 'pi', 'pr', 'rj', 'rn', 'ro', 'rr', 'rs', 'sc', 'se', 'sp', 'to', 'zz'];
@@ -17,6 +18,10 @@ const tl = read(`${DATA}/timeline.json`, { series: {} });
 const series = tl.series;
 const r2 = read(`${DATA}/r2-mun.json`, { rows: {} });
 const mun = r2.rows;
+const r1 = read(`${DATA}/r1.json`, null);
+const fc = read(`${DATA}/forecast.json`, { cols: FORECAST_COLS, series: {} });
+const R2_COLS = ['st', 'ts', 'est', 'te', 'c', 'a', 'vb', 'vn', 'v13', 'v22', 't0', 't1'];
+let munDirty = false;
 const brt = (d, h) => { const [D, M, Y] = d.split('/').map(Number); const [hh, mm, ss] = h.split(':').map(Number); return Date.UTC(Y, M - 1, D, hh + 3, mm, ss) / 1000; };
 let lastChange = 0, complete = false;
 
@@ -57,6 +62,7 @@ async function pollMunicipalities() {
       const r = extract(j), old = mun[key], now = Math.floor(Date.now() / 1000);
       mun[key] = [r.st, r.ts, r.est, r.te, r.c, r.a, r.vb, r.vn, r.cand['13'] || 0, r.cand['22'] || 0,
         old?.[10] ?? now, r.ts > 0 && r.st >= r.ts ? (old?.[11] || now) : 0];
+      munDirty = true;
     } catch (e) { console.error(e.message); }
   });
   return todo.length;
@@ -64,7 +70,17 @@ async function pollMunicipalities() {
 
 function publish() {
   const updated = new Date().toISOString();
-  writeFileSync(`${DATA}/r2-mun.json`, JSON.stringify({ updated, cols: ['st', 'ts', 'est', 'te', 'c', 'a', 'vb', 'vn', 'v13', 'v22', 't0', 't1'], rows: mun }));
+  // One forecast point per publish in which municipality data moved.
+  if (munDirty && r1) {
+    try {
+      const t = Math.floor(Date.parse(updated) / 1000);
+      for (const [sc, v] of Object.entries(forecastPoint(r1, { cols: R2_COLS, rows: mun }))) (fc.series[sc] ||= []).push([t, ...v]);
+      fc.updated = updated;
+      writeFileSync(`${DATA}/forecast.json`, JSON.stringify(fc));
+    } catch (e) { console.error('forecast failed', e.message); }
+    munDirty = false;
+  }
+  writeFileSync(`${DATA}/r2-mun.json`, JSON.stringify({ updated, cols: R2_COLS, rows: mun }));
   writeFileSync(`${DATA}/timeline.json`, JSON.stringify({ updated, cols: ['t', 'st', 'ts', 'est', 'te', 'c', 'a', 'vb', 'vn', 'v13', 'v22'], series }));
   const git = (...a) => execFileSync('git', a, { timeout: 90e3, stdio: 'pipe' }).toString();
   git('add', DATA);
