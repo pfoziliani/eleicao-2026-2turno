@@ -140,14 +140,30 @@ const PRIOR = [
 export function fitTransfersByRegion(muns) {
   const pooled = fitTransfers(muns);
   if (!pooled) return null;
+  return combine(REGIONS.map(rg => {
+    const sub = muns.filter(m => m.rg === rg.id);
+    return sub.some(m => m.r2?.est) ? fitTransfers(sub) || fitTransfers(sub, 1, pooled.T) : null;
+  }));
+}
+
+// Same idea one level down: each state on its own, small states borrow their region's fit.
+export function fitTransfersByState(muns) {
+  const pooled = fitTransfers(muns);
+  if (!pooled) return null;
+  const regionT = {};
+  for (const rg of REGIONS) regionT[rg.id] = fitTransfers(muns.filter(m => m.rg === rg.id))?.T || pooled.T;
+  return combine(UFS.map(uf => {
+    const sub = muns.filter(m => m.uf === uf);
+    return sub.some(m => m.r2?.est) ? fitTransfers(sub, 60) || fitTransfers(sub, 1, regionT[UF[uf].rg]) : null;
+  }));
+}
+
+function combine(fits) {
   const S = SOURCES.length, D = DESTS.length;
   const flows = Array.from({ length: S }, () => new Array(D).fill(0));
   const tot = new Array(S).fill(0), observed = new Array(D).fill(0);
   let n = 0;
-  for (const rg of REGIONS) {
-    const sub = muns.filter(m => m.rg === rg.id);
-    if (!sub.some(m => m.r2?.est)) continue;
-    const f = fitTransfers(sub) || fitTransfers(sub, 1, pooled.T);
+  for (const f of fits) {
     if (!f) continue;
     f.flows.forEach((row, i) => row.forEach((v, d) => (flows[i][d] += v)));
     f.tot.forEach((v, i) => (tot[i] += v));
@@ -157,6 +173,21 @@ export function fitTransfersByRegion(muns) {
   const T = flows.map((row, i) => row.map(v => (tot[i] ? v / tot[i] : 0)));
   const fitted = DESTS.map((_, d) => flows.reduce((s, r) => s + r[d], 0));
   return { T, flows, tot, observed, fitted, n };
+}
+
+// Ecological estimates are model-sensitive, so fit several reasonable variants and
+// report the first as the estimate and the spread across all of them as its range.
+export function transferModels(muns, scope) {
+  const isRegion = REGIONS.some(r => r.id === scope);
+  const variants = scope === 'br'
+    ? [['by region', () => fitTransfersByRegion(muns)], ['pooled', () => fitTransfers(muns, 25)], ['by state', () => fitTransfersByState(muns)]]
+    : isRegion ? [['pooled', () => fitTransfers(muns, 25)], ['by state', () => fitTransfersByState(muns)]]
+    : [['pooled', () => fitTransfers(muns, 25)]];
+  const ok = variants.map(([nm, f]) => [nm, f()]).filter(v => v[1]);
+  if (!ok.length) return null;
+  const main = ok[0][1];
+  const range = main.T.map((row, i) => row.map((_, d) => [Math.min(...ok.map(v => v[1].T[i][d])), Math.max(...ok.map(v => v[1].T[i][d]))]));
+  return { ...main, range, models: ok.map(v => v[0]) };
 }
 
 export function fitTransfers(muns, minMuns = 40, fixedT = null) {
@@ -197,7 +228,7 @@ export function fitTransfers(muns, minMuns = 40, fixedT = null) {
   }
   const L = 2 * (lmax + lam) * 1.05;
   let T = PRIOR.map(r => [...r]), Y = T.map(r => [...r]), tk = 1;
-  for (let it = 0; it < 3000; it++) {
+  for (let it = 0; it < 1200; it++) {
     const Tn = Y.map((row, i) => {
       const g = row.map((y, d) => {
         let s = 0;
@@ -271,4 +302,46 @@ export function contributions(G, areas, ufs, binSec = 300) {
     bins.push({ t0: times[i0], t1: times[i1], parts, pp: parts.reduce((s, p) => s + p.pp, 0), dV: V1 - V0, s1: S1.L / V1, s0 });
   }
   return bins;
+}
+
+// ---- Projection ----------------------------------------------------------
+// Fully counted municipalities count as they are; the rest of a partly counted one is
+// assumed to vote like its own counted sections; untouched municipalities get the
+// transfer model applied to their 1st-round result. T comes from the state's own fit
+// (if it has enough counted municipalities), else its region's, else the pooled fit.
+export function projectionTs(muns) {
+  const pooled = fitTransfers(muns);
+  if (!pooled) return null;
+  const region = {}, state = {};
+  for (const rg of REGIONS) region[rg.id] = fitTransfers(muns.filter(m => m.rg === rg.id))?.T;
+  for (const uf of UFS) state[uf] = fitTransfers(muns.filter(m => m.uf === uf), 60)?.T;
+  return {
+    'by state': m => state[m.uf] || region[m.rg] || pooled.T,
+    'by region': m => region[m.rg] || pooled.T,
+    pooled: () => pooled.T,
+  };
+}
+
+export function project(muns, Tof) {
+  let L = 0, F = 0, eDone = 0, eAll = 0;
+  for (const m of muns) {
+    const q = m.r2, r = m.r1;
+    eAll += r.te;
+    if (q && q.est) {
+      const f = Math.min(1, q.est / r.te), k = f < 1 ? 1 + ((1 - f) * r.te) / q.est : 1;
+      L += q.v13 * k; F += q.v22 * k; eDone += q.est;
+    } else {
+      const T = Tof(m), x = [r.v13, r.v22, r.v70, r.v14, r.v55, r.v30 + r.vout, r.vb + r.vn, r.a];
+      for (let s = 0; s < x.length; s++) { L += x[s] * T[s][0]; F += x[s] * T[s][1]; }
+    }
+  }
+  return { L, F, share: L / (L + F), counted: eDone / eAll };
+}
+
+export function projections(muns) {
+  const Ts = projectionTs(muns);
+  if (!Ts) return null;
+  const runs = Object.entries(Ts).map(([nm, Tof]) => ({ nm, ...project(muns, Tof) }));
+  const shares = runs.map(r => r.share);
+  return { main: runs[0], runs, lo: Math.min(...shares), hi: Math.max(...shares) };
 }

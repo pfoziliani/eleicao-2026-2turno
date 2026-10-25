@@ -156,6 +156,12 @@ function renderTiles(cmp) {
   const host = $('tiles');
   host.replaceChildren();
   if (!cmp.r2.n) { h('p', { class: 'note' }, host, 'No municipalities counted yet in this scope.'); return; }
+  const pj = A.projections(scopeMuns(S.scope));
+  if (pj) {
+    const lead = pj.main.share >= 0.5;
+    tile(host, 'Projected full count · swing model', `${lead ? 'Lula' : 'Flávio'} ${pct(lead ? pj.main.share : 1 - pj.main.share, 1)}`,
+      [{ b: `Lula ${(100 * pj.lo).toFixed(1)}–${(100 * pj.hi).toFixed(1)}%` }, ` across models · assumes uncounted places move like counted ones in their state`], lead ? '--lula' : '--flavio');
+  }
   tile(host, 'Lula · same areas as 1st round', pct(cmp.L2, 1), [{ b: pp(cmp.dL) }, ` from ${pct(cmp.L1, 1)} on 4 Oct`], '--lula');
   tile(host, 'Flávio · same areas as 1st round', pct(cmp.F2, 1), [{ b: pp(cmp.dF) }, ` from ${pct(cmp.F1, 1)} on 4 Oct`], '--flavio');
   tile(host, 'Net swing vs 1st-round Lula/Flávio split', swingTxt(cmp.swing), [`Lula had ${pct(cmp.L1two, 1)} of the two-man vote on 4 Oct`]);
@@ -209,25 +215,31 @@ const DEST_CLASS = ['lula', 'flavio', 'bn', 'abst'];
 const DEST_COLOR = ['--lula', '--flavio', '--bn', '--abst'];
 function renderTransfers() {
   const ms = scopeMuns(S.scope);
-  const fit = S.scope === 'br' ? A.fitTransfersByRegion(ms) : A.fitTransfers(ms, 25);
+  const fit = A.transferModels(ms, S.scope);
   legend($('trLegend'), A.DESTS.map((d, i) => ({ nm: d.nm + ' (2nd round)', color: DEST_COLOR[i] })));
   const host = $('trBars');
   host.replaceChildren();
   if (!fit) { h('p', { class: 'note' }, host, 'Not enough municipalities counted in this scope yet (needs 25+).'); $('trSummary').replaceChildren(); return; }
-  $('trDesc').textContent = `How each group of 4 Oct voters appears to be splitting on 25 Oct, estimated from ${nf.format(fit.n)} counted municipalities in ${scopeName(S.scope)}${S.scope === 'br' ? ' (fit region by region)' : ''}. Ecological estimate: it infers aggregate flows from how results moved place by place; treat it as indicative.`;
+  $('trDesc').textContent = `How each group of 4 Oct voters appears to be splitting on 25 Oct, inferred from how results moved across ${nf.format(fit.n)} counted municipalities in ${scopeName(S.scope)} (model: ${fit.models[0]}). This is an ecological estimate of aggregate flows, not a poll of individuals: when the model variants disagree, the range under each bar shows by how much. Treat it as indicative, especially early in the count.`;
   const order = [2, 3, 4, 5, 6, 7, 0, 1];
   order.forEach((i, k) => {
     if (k === 6) h('div', { class: 'tr-sep' }, host);
     const src = A.SOURCES[i];
     const nm = h('div', { class: 'tr-name' }, host, src.nm);
     h('small', {}, nm, src.sub);
-    const bar = h('div', { class: 'tr-bar' }, host);
+    const cell = h('div', {}, host);
+    const bar = h('div', { class: 'tr-bar' }, cell);
+    if (fit.models.length > 1 && i > 1) {
+      const rg = d => fit.range[i][d].map(v => Math.round(100 * v)), [l0, l1] = rg(0), [f0, f1] = rg(1);
+      h('div', { class: 'tr-range' }, cell, `Range across ${fit.models.length} model variants: Lula ${l0}–${l1}% · Flávio ${f0}–${f1}%`);
+    }
     fit.T[i].forEach((p, d) => {
       if (p < 0.0005) return;
       const seg = h('div', { class: DEST_CLASS[d] }, bar);
       seg.style.width = `calc(${100 * p}% - 2px)`;
       if (p >= 0.09) seg.textContent = Math.round(100 * p) + '%';
-      seg.addEventListener('pointermove', ev => showTip(ev, `${src.nm} 1st-round voters → ${A.DESTS[d].nm}`, [{ k: 'Share', v: (100 * p).toFixed(1) + '%', color: DEST_COLOR[d] }, { k: 'Votes (est.)', v: '≈ ' + fmtK(fit.flows[i][d]) }]));
+      const [r0, r1] = fit.range[i][d];
+      seg.addEventListener('pointermove', ev => showTip(ev, `${src.nm} 1st-round voters → ${A.DESTS[d].nm}`, [{ k: 'Estimate', v: (100 * p).toFixed(1) + '%', color: DEST_COLOR[d] }, ...(fit.models.length > 1 ? [{ k: 'Model range', v: `${(100 * r0).toFixed(0)}–${(100 * r1).toFixed(0)}%` }] : []), { k: 'Votes (est.)', v: '≈ ' + fmtK(fit.flows[i][d]) }]));
       seg.addEventListener('pointerleave', hideTip);
     });
     h('div', { class: 'tr-votes' }, host, `${fmtK(fit.tot[i])} on 4 Oct`);

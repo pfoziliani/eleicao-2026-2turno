@@ -72,7 +72,7 @@
   <section class="card" aria-labelledby="trTitle">
     <div class="card-head">
       <div>
-        <h2 id="trTitle">Where 1st-round votes are going (estimated)</h2>
+        <h2 id="trTitle">Where 1st-round votes appear to be going (model estimate)</h2>
         <p class="desc" id="trDesc">Ecological estimate across counted municipalities.</p>
       </div>
       <div class="legend" id="trLegend"></div>
@@ -148,6 +148,7 @@
       <li><strong>Source of truth:</strong> TSE results feed (<code>resultados.tse.jus.br</code>), 1st round election 6257 (4 Oct 2026), 2nd round election 6258 (25 Oct 2026). Headline and state numbers are read directly from TSE by your browser every 30 s.</li>
       <li><strong>Like-for-like change:</strong> for every municipality with 2nd-round votes counted, its 1st-round result is scaled by the share of its electorate already counted, then summed. This removes the bias of comparing a partial count with a complete one.</li>
       <li><strong>Vote transfers:</strong> constrained ecological regression (each 1st-round group splits into Lula / Flávio / blank-null / did not vote, shares ≥ 0 summing to 100%), fit separately for each region across counted municipalities and weighted by electorate. It is an estimate of aggregate flows, not a measurement of individual votes.</li>
+      <li><strong>Projection:</strong> fully counted municipalities count as they are; the uncounted part of a partly counted municipality is assumed to vote like its own counted sections; municipalities with nothing counted get the transfer model applied to their 1st-round result (state fit, else region, else pooled). The range is the spread across those three fits. It assumes the rest of the count behaves like what has been counted so far in the same state, which early counts don't always do.</li>
       <li><strong>Timeline:</strong> TSE files for all 27 states and abroad were snapshotted every 20 s from 19:31 BRT (≈5.7% counted). Changes in Lula's share are split exactly by area: Δshare = Σ (ΔLula − share × Δvalid) / valid.</li>
       <li>Code &amp; data: <a href="https://github.com/pfoziliani/eleicao-2026-2turno">github.com/pfoziliani/eleicao-2026-2turno</a>. Unofficial; for official results see <a href="https://resultados.tse.jus.br">resultados.tse.jus.br</a>.</li>
     </ul>
