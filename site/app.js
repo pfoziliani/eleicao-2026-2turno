@@ -160,7 +160,7 @@ function renderTiles(cmp) {
   if (pj) {
     const lead = pj.main.share >= 0.5;
     tile(host, 'Projected full count · swing model', `${lead ? 'Lula' : 'Flávio'} ${pct(lead ? pj.main.share : 1 - pj.main.share, 1)}`,
-      [{ b: `Lula ${(100 * pj.lo).toFixed(1)}–${(100 * pj.hi).toFixed(1)}%` }, ` across models · assumes uncounted places move like counted ones in their state`], lead ? '--lula' : '--flavio');
+      [pj.hi - pj.lo < 0.001 ? 'Model variants agree' : { b: `Lula ${(100 * pj.lo).toFixed(1)}–${(100 * pj.hi).toFixed(1)}%` }, `${pj.hi - pj.lo < 0.001 ? '' : ' across models'} · assumes uncounted places move like counted ones in their state`], lead ? '--lula' : '--flavio');
   }
   tile(host, 'Lula · same areas as 1st round', pct(cmp.L2, 1), [{ b: pp(cmp.dL) }, ` from ${pct(cmp.L1, 1)} on 4 Oct`], '--lula');
   tile(host, 'Flávio · same areas as 1st round', pct(cmp.F2, 1), [{ b: pp(cmp.dF) }, ` from ${pct(cmp.F1, 1)} on 4 Oct`], '--flavio');
