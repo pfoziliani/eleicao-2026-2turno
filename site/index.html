@@ -1,1 +1,159 @@
-<!doctype html><meta charset="utf-8"><title>Apuração 2º turno 2026</title><p>Carregando painel…</p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brazil 2026 runoff · live count</title>
+<meta name="description" content="Live count of Brazil's 2026 presidential runoff (Lula × Flávio Bolsonaro) from official TSE data: shares, change vs the 1st round in the same areas, estimated vote transfers and how each region moved the count.">
+<meta property="og:title" content="Brazil 2026 runoff · live count">
+<meta property="og:description" content="Lula × Flávio Bolsonaro, live from TSE: change vs 1st round, vote transfers, and which regions moved the count.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="viz-root">
+  <header class="top">
+    <div class="brand">
+      <span class="live" id="liveDot" aria-hidden="true"></span>
+      <div>
+        <h1>Brazil 2026 · Presidential runoff</h1>
+        <p class="sub">Live count from the official TSE feed · 2nd round, 25 Oct 2026</p>
+      </div>
+    </div>
+    <div class="status">
+      <span id="status">Connecting to TSE…</span>
+      <button id="theme" class="ghost" type="button" aria-label="Toggle dark mode">◐</button>
+    </div>
+  </header>
+
+  <section class="card hero" aria-labelledby="heroTitle">
+    <h2 id="heroTitle" class="sr-only">National result so far</h2>
+    <div class="hero-row">
+      <div class="cand left">
+        <div class="cand-name"><span class="key lula"></span>Lula <span class="party">PT</span></div>
+        <div class="hero-num" id="hLula">–</div>
+        <div class="votes" id="hLulaV">–</div>
+      </div>
+      <div class="hero-mid">
+        <div class="lead" id="hLead">–</div>
+        <div class="counted" id="hCounted">–</div>
+      </div>
+      <div class="cand right">
+        <div class="cand-name">Flávio Bolsonaro <span class="party">PL</span><span class="key flavio"></span></div>
+        <div class="hero-num" id="hFlavio">–</div>
+        <div class="votes" id="hFlavioV">–</div>
+      </div>
+    </div>
+    <div class="split" id="split" role="img" aria-label="Share of valid votes">
+      <div class="seg lula" id="splitL"></div><div class="seg flavio" id="splitF"></div><div class="half" title="50%"></div>
+    </div>
+    <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
+    <p class="hero-foot" id="heroFoot"></p>
+  </section>
+
+  <nav class="filters" aria-label="Scope">
+    <span class="flabel">Scope</span>
+    <div class="seg-ctl" id="scopeBtns" role="radiogroup"></div>
+    <select id="scopeState" aria-label="State"></select>
+    <span class="fnote" id="scopeNote"></span>
+  </nav>
+
+  <section class="tiles" id="tiles" aria-label="Key changes vs 1st round"></section>
+
+  <section class="card" aria-labelledby="cmpTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="cmpTitle">Change from the 1st round, in the same places counted so far</h2>
+        <p class="desc">Each area's 2nd-round count is compared with how <em>the same municipalities</em> voted on 4 Oct (partly counted municipalities are pro-rated by electorate counted). Shares are of valid votes.</p>
+      </div>
+    </div>
+    <div class="table-wrap"><table class="cmp" id="cmpTable"></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="trTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="trTitle">Where 1st-round votes are going (estimated)</h2>
+        <p class="desc" id="trDesc">Ecological estimate across counted municipalities.</p>
+      </div>
+      <div class="legend" id="trLegend"></div>
+    </div>
+    <div id="trBars" class="tr-bars"></div>
+    <div class="tr-summary" id="trSummary"></div>
+  </section>
+
+  <section class="card" aria-labelledby="tlTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="tlTitle">How the count unfolded</h2>
+        <p class="desc" id="tlDesc">Brasília time. Recorded from TSE snapshots during the night.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <figure>
+        <figcaption>Share of valid votes over time</figcaption>
+        <div class="legend" id="lgShare"></div>
+        <div class="chart" id="chShare"></div>
+      </figure>
+      <figure>
+        <figcaption>Who was reporting: % of polling sections counted</figcaption>
+        <div class="legend" id="lgProg"></div>
+        <div class="chart" id="chProg"></div>
+      </figure>
+    </div>
+    <figure>
+      <figcaption>What moved Lula's share in each 5-minute window <span class="muted">· ↑ toward Lula, ↓ toward Flávio</span></figcaption>
+      <div class="legend" id="lgContrib"></div>
+      <div class="chart" id="chContrib"></div>
+      <p class="callout" id="contribCallout"></p>
+    </figure>
+    <div class="grid2">
+      <figure>
+        <figcaption>Counted so far vs. full electorate, by area</figcaption>
+        <div id="chMix"></div>
+        <p class="note" id="mixNote"></p>
+      </figure>
+      <figure>
+        <figcaption>By poll-closing time <span class="muted">· polls close 17:00 local; TSE publishes only after the last close (19:00 BRT)</span></figcaption>
+        <div class="table-wrap"><table class="tz" id="tzTable"></table></div>
+      </figure>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="munTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="munTitle">Municipalities: 1st round vs 2nd round</h2>
+        <p class="desc">Each dot is a municipality with votes counted (size ∝ electorate). Above the diagonal, Lula is doing better than his 1st-round split with Flávio.</p>
+      </div>
+      <div class="legend" id="lgMun"></div>
+    </div>
+    <div class="grid-mun">
+      <div class="chart" id="chMun"></div>
+      <div class="movers">
+        <h3>Largest swings <span class="muted">(≥ 20k voters, ≥ 50% counted)</span></h3>
+        <div class="mv-cols"><ol id="mvLula"></ol><ol id="mvFlavio"></ol></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="stTitle">
+    <h2 id="stTitle">All states</h2>
+    <p class="desc">Live TSE totals. Click a header to sort.</p>
+    <div class="table-wrap"><table class="states" id="stTable"></table></div>
+  </section>
+
+  <footer class="method">
+    <h2>Method &amp; sources</h2>
+    <ul>
+      <li><strong>Source of truth:</strong> TSE results feed (<code>resultados.tse.jus.br</code>), 1st round election 6257 (4 Oct 2026), 2nd round election 6258 (25 Oct 2026). Headline and state numbers are read directly from TSE by your browser every 30 s.</li>
+      <li><strong>Like-for-like change:</strong> for every municipality with 2nd-round votes counted, its 1st-round result is scaled by the share of its electorate already counted, then summed. This removes the bias of comparing a partial count with a complete one.</li>
+      <li><strong>Vote transfers:</strong> constrained ecological regression (each 1st-round group splits into Lula / Flávio / blank-null / did not vote, shares ≥ 0 summing to 100%), fit separately for each region across counted municipalities and weighted by electorate. It is an estimate of aggregate flows, not a measurement of individual votes.</li>
+      <li><strong>Timeline:</strong> TSE files for all 27 states and abroad were snapshotted every 20 s from 19:31 BRT (≈5.7% counted). Changes in Lula's share are split exactly by area: Δshare = Σ (ΔLula − share × Δvalid) / valid.</li>
+      <li>Code &amp; data: <a href="https://github.com/pfoziliani/eleicao-2026-2turno">github.com/pfoziliani/eleicao-2026-2turno</a>. Unofficial; for official results see <a href="https://resultados.tse.jus.br">resultados.tse.jus.br</a>.</li>
+    </ul>
+  </footer>
+</div>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
