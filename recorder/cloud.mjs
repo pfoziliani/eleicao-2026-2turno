@@ -87,7 +87,14 @@ async function redeploy() {
   if (!r.ok) console.error('dispatch failed', r.status, await r.text());
 }
 
-if (Date.now() > STOP_AFTER) { console.log('past the counting window, nothing to do'); process.exit(0); }
+if (Date.now() > STOP_AFTER) {
+  // Election night is over: switch the schedule off so it stops waking up.
+  const r = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/actions/workflows/live.yml/disable`, {
+    method: 'PUT', headers: { authorization: `Bearer ${process.env.GH_TOKEN}`, accept: 'application/vnd.github+json' },
+  });
+  console.log('past the counting window; disabled schedule:', r.status);
+  process.exit(0);
+}
 await pollStates();
 if (complete && !lastChange) { console.log('count already complete and published'); process.exit(0); }
 lastChange = Date.now();
