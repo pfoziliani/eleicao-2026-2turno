@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Brazil 2026 runoff · live count</title>
-<meta name="description" content="Live count of Brazil's 2026 presidential runoff (Lula × Flávio Bolsonaro) from official TSE data: shares, change vs the 1st round in the same areas, estimated vote transfers and how each region moved the count.">
-<meta property="og:title" content="Brazil 2026 runoff · live count">
-<meta property="og:description" content="Lula × Flávio Bolsonaro, live from TSE: change vs 1st round, vote transfers, and which regions moved the count.">
+<title>Apuração ao vivo · 2º turno presidencial 2026</title>
+<meta name="description" content="Apuração ao vivo do 2º turno presidencial de 2026 (Lula × Flávio Bolsonaro) com dados oficiais do TSE: percentuais, variação em relação ao 1º turno nos mesmos locais, transferência de votos, previsão e quais regiões moveram a apuração.">
+<meta property="og:title" content="Apuração ao vivo · 2º turno presidencial 2026">
+<meta property="og:description" content="Lula × Flávio Bolsonaro com dados do TSE: variação vs. 1º turno, transferência de votos, previsão de vitória e o que moveu a apuração.">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -15,18 +15,18 @@
     <div class="brand">
       <span class="live" id="liveDot" aria-hidden="true"></span>
       <div>
-        <h1>Brazil 2026 · Presidential runoff</h1>
-        <p class="sub">Live count from the official TSE feed · 2nd round, 25 Oct 2026</p>
+        <h1>Brasil 2026 · 2º turno presidencial</h1>
+        <p class="sub">Apuração ao vivo com dados oficiais do TSE · 25 de outubro de 2026</p>
       </div>
     </div>
     <div class="status">
-      <span id="status">Connecting to TSE…</span>
-      <button id="theme" class="ghost" type="button" aria-label="Toggle dark mode">◐</button>
+      <span id="status">Conectando ao TSE…</span>
+      <button id="theme" class="ghost" type="button" aria-label="Alternar modo escuro">◐</button>
     </div>
   </header>
 
   <section class="card hero" aria-labelledby="heroTitle">
-    <h2 id="heroTitle" class="sr-only">National result so far</h2>
+    <h2 id="heroTitle" class="sr-only">Resultado nacional até agora</h2>
     <div class="hero-row">
       <div class="cand left">
         <div class="cand-name"><span class="key lula"></span>Lula <span class="party">PT</span></div>
@@ -43,27 +43,39 @@
         <div class="votes" id="hFlavioV">–</div>
       </div>
     </div>
-    <div class="split" id="split" role="img" aria-label="Share of valid votes">
+    <div class="split" id="split" role="img" aria-label="Percentual de votos válidos">
       <div class="seg lula" id="splitL"></div><div class="seg flavio" id="splitF"></div><div class="half" title="50%"></div>
     </div>
     <div class="meter" aria-hidden="true"><div id="meterFill"></div></div>
     <p class="hero-foot" id="heroFoot"></p>
   </section>
 
-  <nav class="filters" aria-label="Scope">
-    <span class="flabel">Scope</span>
+  <nav class="filters" aria-label="Recorte">
+    <span class="flabel">Recorte</span>
     <div class="seg-ctl" id="scopeBtns" role="radiogroup"></div>
-    <select id="scopeState" aria-label="State"></select>
+    <select id="scopeState" aria-label="Estado"></select>
     <span class="fnote" id="scopeNote"></span>
   </nav>
 
-  <section class="tiles" id="tiles" aria-label="Key changes vs 1st round"></section>
+  <section class="tiles" id="tiles" aria-label="Principais variações em relação ao 1º turno"></section>
+
+  <section class="card forecast" aria-labelledby="fcTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="fcTitle">Previsão de vitória</h2>
+        <p class="desc">Parte do resultado do 1º turno e soma os votos que cada candidato está ganhando dos outros candidatos, de quem votou branco/nulo e de quem não foi votar em 4/10 — com as taxas de transferência medidas nos municípios já apurados, ajustadas para bater com os votos já contados.</p>
+      </div>
+    </div>
+    <div id="fcHead" class="fc-head"></div>
+    <div class="table-wrap"><table class="bridge" id="fcBridge"></table></div>
+    <p class="note" id="fcNote"></p>
+  </section>
 
   <section class="card" aria-labelledby="cmpTitle">
     <div class="card-head">
       <div>
-        <h2 id="cmpTitle">Change from the 1st round, in the same places counted so far</h2>
-        <p class="desc">Each area's 2nd-round count is compared with how <em>the same municipalities</em> voted on 4 Oct (partly counted municipalities are pro-rated by electorate counted). Shares are of valid votes.</p>
+        <h2 id="cmpTitle">Variação em relação ao 1º turno, nos mesmos locais já apurados</h2>
+        <p class="desc">O 2º turno de cada área é comparado com o voto dos <em>mesmos municípios</em> em 4 de outubro (municípios parcialmente apurados entram na proporção do eleitorado já apurado). Percentuais de votos válidos. Clique numa linha para detalhar.</p>
       </div>
     </div>
     <div class="table-wrap"><table class="cmp" id="cmpTable"></table></div>
@@ -72,48 +84,47 @@
   <section class="card" aria-labelledby="trTitle">
     <div class="card-head">
       <div>
-        <h2 id="trTitle">Where 1st-round votes appear to be going (model estimate)</h2>
-        <p class="desc" id="trDesc">Ecological estimate across counted municipalities.</p>
+        <h2 id="trTitle">Para onde estão indo os votos do 1º turno (estimativa)</h2>
+        <p class="desc" id="trDesc">Estimativa ecológica a partir dos municípios apurados.</p>
       </div>
       <div class="legend" id="trLegend"></div>
     </div>
     <div id="trBars" class="tr-bars"></div>
-    <div class="tr-summary" id="trSummary"></div>
   </section>
 
   <section class="card" aria-labelledby="tlTitle">
     <div class="card-head">
       <div>
-        <h2 id="tlTitle">How the count unfolded</h2>
-        <p class="desc" id="tlDesc">Brasília time. Recorded from TSE snapshots during the night.</p>
+        <h2 id="tlTitle">Como a apuração evoluiu</h2>
+        <p class="desc" id="tlDesc">Horário de Brasília.</p>
       </div>
     </div>
     <div class="grid2">
       <figure>
-        <figcaption>Share of valid votes over time</figcaption>
+        <figcaption>Percentual de votos válidos ao longo da apuração</figcaption>
         <div class="legend" id="lgShare"></div>
         <div class="chart" id="chShare"></div>
       </figure>
       <figure>
-        <figcaption>Who was reporting: % of polling sections counted</figcaption>
+        <figcaption>Quem estava apurando: % das seções apuradas</figcaption>
         <div class="legend" id="lgProg"></div>
         <div class="chart" id="chProg"></div>
       </figure>
     </div>
     <figure>
-      <figcaption>What moved Lula's share in each 5-minute window <span class="muted">· ↑ toward Lula, ↓ toward Flávio</span></figcaption>
+      <figcaption>O que moveu o percentual de Lula a cada 5 minutos <span class="muted">· ↑ a favor de Lula, ↓ a favor de Flávio</span></figcaption>
       <div class="legend" id="lgContrib"></div>
       <div class="chart" id="chContrib"></div>
       <p class="callout" id="contribCallout"></p>
     </figure>
     <div class="grid2">
       <figure>
-        <figcaption>Counted so far vs. full electorate, by area</figcaption>
+        <figcaption>Apurado até agora vs. eleitorado total, por área</figcaption>
         <div id="chMix"></div>
         <p class="note" id="mixNote"></p>
       </figure>
       <figure>
-        <figcaption>By poll-closing time <span class="muted">· polls close 17:00 local; TSE publishes only after the last close (19:00 BRT)</span></figcaption>
+        <figcaption>Por horário de fechamento das urnas <span class="muted">· as urnas fecham às 17:00 no horário local; o TSE só divulga depois do último fechamento (19:00 de Brasília)</span></figcaption>
         <div class="table-wrap"><table class="tz" id="tzTable"></table></div>
       </figure>
     </div>
@@ -122,35 +133,35 @@
   <section class="card" aria-labelledby="munTitle">
     <div class="card-head">
       <div>
-        <h2 id="munTitle">Municipalities: 1st round vs 2nd round</h2>
-        <p class="desc">Each dot is a municipality with votes counted (size ∝ electorate). Above the diagonal, Lula is doing better than his 1st-round split with Flávio.</p>
+        <h2 id="munTitle">Municípios: 1º turno vs. 2º turno</h2>
+        <p class="desc">Cada ponto é um município com votos apurados (tamanho ∝ eleitorado). Acima da diagonal, Lula está melhor do que na divisão Lula/Flávio do 1º turno.</p>
       </div>
       <div class="legend" id="lgMun"></div>
     </div>
     <div class="grid-mun">
       <div class="chart" id="chMun"></div>
       <div class="movers">
-        <h3>Largest swings <span class="muted">(≥ 20k voters, ≥ 50% counted)</span></h3>
+        <h3>Maiores swings <span class="muted">(≥ 20 mil eleitores, ≥ 50% apurado)</span></h3>
         <div class="mv-cols"><ol id="mvLula"></ol><ol id="mvFlavio"></ol></div>
       </div>
     </div>
   </section>
 
   <section class="card" aria-labelledby="stTitle">
-    <h2 id="stTitle">All states</h2>
-    <p class="desc">Live TSE totals. Click a header to sort.</p>
+    <h2 id="stTitle">Todos os estados</h2>
+    <p class="desc">Totais ao vivo do TSE. Clique num cabeçalho para ordenar e numa linha para detalhar o estado.</p>
     <div class="table-wrap"><table class="states" id="stTable"></table></div>
   </section>
 
   <footer class="method">
-    <h2>Method &amp; sources</h2>
+    <h2>Método e fontes</h2>
     <ul>
-      <li><strong>Source of truth:</strong> TSE results feed (<code>resultados.tse.jus.br</code>), 1st round election 6257 (4 Oct 2026), 2nd round election 6258 (25 Oct 2026). Headline and state numbers are read directly from TSE by your browser every 30 s.</li>
-      <li><strong>Like-for-like change:</strong> for every municipality with 2nd-round votes counted, its 1st-round result is scaled by the share of its electorate already counted, then summed. This removes the bias of comparing a partial count with a complete one.</li>
-      <li><strong>Vote transfers:</strong> constrained ecological regression (each 1st-round group splits into Lula / Flávio / blank-null / did not vote, shares ≥ 0 summing to 100%), fit separately for each region across counted municipalities and weighted by electorate. It is an estimate of aggregate flows, not a measurement of individual votes.</li>
-      <li><strong>Projection:</strong> fully counted municipalities count as they are; the uncounted part of a partly counted municipality is assumed to vote like its own counted sections; municipalities with nothing counted get the transfer model applied to their 1st-round result (state fit, else region, else pooled). The range is the spread across those three fits. It assumes the rest of the count behaves like what has been counted so far in the same state, which early counts don't always do.</li>
-      <li><strong>Timeline:</strong> TSE files for all 27 states and abroad were snapshotted every 20 s from 19:31 BRT (≈5.7% counted). Changes in Lula's share are split exactly by area: Δshare = Σ (ΔLula − share × Δvalid) / valid.</li>
-      <li>Code &amp; data: <a href="https://github.com/pfoziliani/eleicao-2026-2turno">github.com/pfoziliani/eleicao-2026-2turno</a>. Unofficial; for official results see <a href="https://resultados.tse.jus.br">resultados.tse.jus.br</a>.</li>
+      <li><strong>Fonte oficial:</strong> feed de resultados do TSE (<code>resultados.tse.jus.br</code>), eleição 6257 (1º turno, 4/10/2026) e 6258 (2º turno, 25/10/2026). Os números principais e por estado são lidos diretamente do TSE pelo seu navegador a cada 30 s.</li>
+      <li><strong>Variação nos mesmos locais:</strong> para cada município com votos do 2º turno apurados, o resultado do 1º turno é ponderado pela fração do eleitorado já apurada e somado. Isso evita comparar uma apuração parcial com um resultado completo.</li>
+      <li><strong>Transferência de votos:</strong> regressão ecológica com restrições (cada grupo do 1º turno se divide entre Lula / Flávio / branco-nulo / não votou, com parcelas ≥ 0 que somam 100%), ajustada por estado (estados com poucos municípios apurados usam o ajuste da região) e ponderada pelo eleitorado. A faixa mostra a diferença entre três variantes (por estado, por região, agrupado). É uma estimativa de fluxos agregados, não uma medida do voto individual.</li>
+      <li><strong>Previsão:</strong> o 1º turno de cada município passa pela matriz de transferência do seu estado; onde já há votos apurados, os fluxos são reescalados para bater com a contagem real (a parte não apurada de um município parcialmente apurado vota como suas seções já apuradas). Supõe que o que falta apurar se comporta como o já apurado no mesmo estado — o que nem sempre acontece no início da apuração.</li>
+      <li><strong>Linha do tempo:</strong> os arquivos do TSE dos 27 estados e do exterior foram capturados a cada 20 s desde 19:31 (≈5,7% apurado). A variação no % de Lula é dividida exatamente por área: Δ% = Σ (ΔLula − % × Δválidos) / válidos.</li>
+      <li>Código e dados: <a href="https://github.com/pfoziliani/eleicao-2026-2turno">github.com/pfoziliani/eleicao-2026-2turno</a>. Painel não oficial; resultado oficial em <a href="https://resultados.tse.jus.br">resultados.tse.jus.br</a>.</li>
     </ul>
   </footer>
 </div>

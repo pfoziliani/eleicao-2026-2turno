@@ -197,3 +197,22 @@ svg .col:hover .colbg { fill: var(--wash); }
   .tr-bars { grid-template-columns: 1fr; gap: 4px; }
   .tr-votes { text-align: left; margin-bottom: 8px; }
 }
+
+/* Forecast */
+.fc-head { margin-bottom: 14px; }
+.fc-big { font-size: clamp(22px, 3.2vw, 30px); font-weight: 650; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
+.fc-big .key { width: 14px; height: 14px; }
+.fc-sub { color: var(--ink2); font-size: 13px; margin: 4px 0 0; }
+.split.small { height: 10px; margin: 12px 0 0; }
+.bridge th { font-size: 12.5px; color: var(--ink2); }
+.bridge td.name { white-space: normal; min-width: 210px; }
+.bridge td.name small { color: var(--muted); }
+.bridge td.bcell { width: 38%; }
+.bridge .bbar { display: flex; align-items: center; gap: 8px; }
+.bridge .b { height: 12px; border-radius: 0 3px 3px 0; flex: none; }
+.bridge .b.neg { opacity: .45; }
+.bridge .bval { font-size: 12.5px; color: var(--ink2); white-space: nowrap; }
+.bridge tr.base td, .bridge tr.total td { font-weight: 600; }
+.bridge tr.base .bval, .bridge tr.total .bval { color: var(--ink); font-size: 13.5px; }
+.bridge tr.total td { border-top: 1px solid var(--axis); border-bottom: 0; }
+@media (max-width: 760px) { .bridge td.name { min-width: 150px; } .bridge td.bcell { width: auto; } }

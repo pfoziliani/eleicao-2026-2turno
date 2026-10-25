@@ -32,8 +32,9 @@ export function ticks(min, max, count = 5) {
 }
 
 const TZ = 'America/Sao_Paulo';
-export const fmtTime = t => new Date(t * 1000).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-export const fmtTimeS = t => new Date(t * 1000).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+export const dec = (v, d = 1) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+export const fmtTime = t => new Date(t * 1000).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+export const fmtTimeS = t => new Date(t * 1000).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 function timeTicks(t0, t1, target) {
   const step = [300, 600, 900, 1800, 3600, 7200, 10800].find(s => (t1 - t0) / s <= target) || 10800;
   const out = [];
@@ -81,7 +82,7 @@ export function legend(host, items) {
 export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [], endLabels = true, tipFmt = yFmt, tipExtra }) {
   host.replaceChildren();
   const pts = series.flatMap(s => s.pts);
-  if (pts.length < 2) { h('p', { class: 'note' }, host, 'Waiting for more snapshots…'); return; }
+  if (pts.length < 2) { h('p', { class: 'note' }, host, 'Aguardando mais capturas…'); return; }
   const W = Math.max(300, host.clientWidth), H = height, m = { l: 40, r: endLabels ? 92 : 12, t: 10, b: 24 };
   const t0 = Math.min(...pts.map(p => p[0])), t1 = Math.max(...pts.map(p => p[0]));
   const x = scale(t0, t1, m.l, W - m.r), y = scale(y0, y1, H - m.b, m.t);
@@ -127,7 +128,7 @@ export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [],
       dots[i].setAttribute('cx', x(p[0])); dots[i].setAttribute('cy', y(p[1])); dots[i].setAttribute('visibility', 'visible');
       return { k: s.nm, v: tipFmt(p[1]), color: s.color, val: p[1] };
     }).sort((a, b) => b.val - a.val);
-    showTip(ev, fmtTime(tt) + ' BRT', rows, tipExtra?.(tt));
+    showTip(ev, fmtTime(tt) + ' (Brasília)', rows, tipExtra?.(tt));
   });
   hit.addEventListener('pointerleave', () => { hideTip(); hair.setAttribute('visibility', 'hidden'); dots.forEach(d => d.setAttribute('visibility', 'hidden')); });
 }
@@ -135,7 +136,7 @@ export function lineChart(host, { series, y0, y1, yFmt, height = 230, refs = [],
 // ---- Diverging stacked columns (contribution of each area per time bin) ----
 export function contribChart(host, { bins, areas, height = 240 }) {
   host.replaceChildren();
-  if (!bins.length) { h('p', { class: 'note' }, host, 'Waiting for more snapshots…'); return; }
+  if (!bins.length) { h('p', { class: 'note' }, host, 'Aguardando mais capturas…'); return; }
   const W = Math.max(300, host.clientWidth), H = height, m = { l: 48, r: 12, t: 10, b: 24 };
   let ext = 0.05;
   for (const b of bins) {
@@ -147,7 +148,7 @@ export function contribChart(host, { bins, areas, height = 240 }) {
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img' }, host);
   for (const v of ticks(-ext, ext, 4)) {
     el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: v === 0 ? 'axis' : 'grid' }, svg);
-    el('text', { x: m.l - 6, y: y(v) + 4, class: 'tick', 'text-anchor': 'end' }, svg, (v > 0 ? '+' : '') + v.toFixed(Math.abs(ext) < 1 ? 2 : 1));
+    el('text', { x: m.l - 6, y: y(v) + 4, class: 'tick', 'text-anchor': 'end' }, svg, (v > 0 ? '+' : '') + dec(v, Math.abs(ext) < 1 ? 2 : 1));
   }
   const every = Math.max(1, Math.ceil(56 / band));
   bins.forEach((b, i) => {
@@ -167,8 +168,8 @@ export function contribChart(host, { bins, areas, height = 240 }) {
     }
     const show = ev => {
       const rows = [...b.parts].sort((p, q) => q.pp - p.pp).filter(p => Math.abs(p.pp) >= 0.0005 || p.dV > 0)
-        .map(p => ({ k: `${p.nm} (+${fmtK(p.dV)} votes)`, v: (p.pp >= 0 ? '+' : '') + p.pp.toFixed(3) + ' pp', color: areas.find(a => a.id === p.id)?.color }));
-      showTip(ev, `${fmtTime(b.t0)}–${fmtTime(b.t1)} BRT`, [...rows, '-', { k: "Net change in Lula's share", v: (b.pp >= 0 ? '+' : '') + b.pp.toFixed(3) + ' pp' }, { k: 'Lula share after', v: (100 * b.s1).toFixed(2) + '%' }]);
+        .map(p => ({ k: `${p.nm} (+${fmtK(p.dV)} votos)`, v: (p.pp >= 0 ? '+' : '') + dec(p.pp, 3) + ' p.p.', color: areas.find(a => a.id === p.id)?.color }));
+      showTip(ev, `${fmtTime(b.t0)}–${fmtTime(b.t1)} (Brasília)`, [...rows, '-', { k: 'Variação líquida no % de Lula', v: (b.pp >= 0 ? '+' : '') + dec(b.pp, 3) + ' p.p.' }, { k: '% de Lula ao final', v: dec(100 * b.s1, 2) + '%' }]);
     };
     g.addEventListener('pointermove', show);
     g.addEventListener('focus', ev => { const r = g.getBoundingClientRect(); show({ clientX: r.right, clientY: r.top }); });
@@ -179,7 +180,7 @@ export function contribChart(host, { bins, areas, height = 240 }) {
 
 export const fmtK = v => {
   const a = Math.abs(v);
-  return a >= 1e6 ? (v / 1e6).toFixed(a >= 1e7 ? 1 : 2) + 'M' : a >= 1e3 ? (v / 1e3).toFixed(a >= 1e5 ? 0 : 1) + 'K' : String(Math.round(v));
+  return a >= 1e6 ? dec(v / 1e6, a >= 1e8 ? 1 : 2) + ' mi' : a >= 1e3 ? dec(v / 1e3, a >= 1e5 ? 0 : 1) + ' mil' : String(Math.round(v));
 };
 
 // ---- Two 100% stacked bars: counted mix vs electorate mix ----
@@ -200,7 +201,7 @@ export function mixBars(host, { rows, areas }) {
       const g = el('g', {}, svg);
       el('rect', { x: x0 + 1, y: yy, width: Math.max(0.5, x1 - x0 - 2), height: bh, fill: `var(${areas[k].color})`, rx: 2 }, g);
       if (x1 - x0 > 34) el('text', { x: (x0 + x1) / 2, y: yy + bh / 2 + 4, 'text-anchor': 'middle', style: 'fill:#fff;font-weight:600;font-size:11px' }, g, Math.round(100 * f) + '%');
-      g.addEventListener('pointermove', ev => showTip(ev, `${areas[k].nm} · ${r.nm}`, [{ k: 'Share', v: (100 * f).toFixed(1) + '%', color: areas[k].color }, { k: r.unit, v: fmtK(v) }]));
+      g.addEventListener('pointermove', ev => showTip(ev, `${areas[k].nm} · ${r.nm}`, [{ k: 'Participação', v: dec(100 * f, 1) + '%', color: areas[k].color }, { k: r.unit, v: fmtK(v) }]));
       g.addEventListener('pointerleave', hideTip);
       acc += f;
     });
@@ -210,7 +211,7 @@ export function mixBars(host, { rows, areas }) {
 // ---- Scatter: 1st-round two-party share (x) vs 2nd-round share (y) ----
 export function scatter(host, { points, height = 380 }) {
   host.replaceChildren();
-  if (!points.length) { h('p', { class: 'note' }, host, 'No municipalities counted yet in this scope.'); return; }
+  if (!points.length) { h('p', { class: 'note' }, host, 'Nenhum município apurado ainda neste recorte.'); return; }
   const W = Math.max(300, host.clientWidth), H = height, m = { l: 52, r: 12, t: 10, b: 34 };
   const x = scale(0, 100, m.l, W - m.r), y = scale(0, 100, H - m.b, m.t);
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img' }, host);
@@ -220,8 +221,8 @@ export function scatter(host, { points, height = 380 }) {
     el('text', { x: m.l - 6, y: y(v) + 4, class: 'tick', 'text-anchor': 'end' }, svg, v + '%');
     el('text', { x: x(v), y: H - m.b + 14, class: 'tick', 'text-anchor': 'middle' }, svg, v + '%');
   }
-  el('text', { x: (m.l + W - m.r) / 2, y: H - 2, class: 'tick', 'text-anchor': 'middle' }, svg, 'Lula share of Lula + Flávio, 1st round');
-  el('text', { x: 10, y: (m.t + H - m.b) / 2, class: 'tick', 'text-anchor': 'middle', transform: `rotate(-90 10 ${(m.t + H - m.b) / 2})` }, svg, 'Lula share, 2nd round');
+  el('text', { x: (m.l + W - m.r) / 2, y: H - 2, class: 'tick', 'text-anchor': 'middle' }, svg, '% de Lula entre Lula + Flávio, 1º turno');
+  el('text', { x: 10, y: (m.t + H - m.b) / 2, class: 'tick', 'text-anchor': 'middle', transform: `rotate(-90 10 ${(m.t + H - m.b) / 2})` }, svg, '% de Lula, 2º turno');
   el('line', { x1: x(0), y1: y(0), x2: x(100), y2: y(100), class: 'ref' }, svg);
   const maxE = Math.max(...points.map(p => p.e));
   const rr = e => Math.max(1.6, 13 * Math.sqrt(e / maxE));
@@ -239,10 +240,10 @@ export function scatter(host, { points, height = 380 }) {
     if (!best) { hideTip(); ring.setAttribute('visibility', 'hidden'); return; }
     ring.setAttribute('cx', x(best.x)); ring.setAttribute('cy', y(best.y)); ring.setAttribute('r', rr(best.e) + 3); ring.setAttribute('visibility', 'visible');
     showTip(ev, `${best.nm} · ${best.uf.toUpperCase()}`, [
-      { k: 'Lula, 2nd round', v: best.y.toFixed(1) + '%', color: '--lula' },
-      { k: 'Lula 1st-round split', v: best.x.toFixed(1) + '%' },
-      { k: 'Swing', v: (best.y - best.x >= 0 ? 'Lula +' : 'Flávio +') + Math.abs(best.y - best.x).toFixed(1) + ' pp' },
-      '-', { k: 'Counted', v: best.pct.toFixed(0) + '%' }, { k: 'Electorate', v: fmtK(best.e) },
+      { k: 'Lula, 2º turno', v: dec(best.y, 1) + '%', color: '--lula' },
+      { k: 'Lula/Flávio no 1º turno', v: dec(best.x, 1) + '%' },
+      { k: 'Swing', v: (best.y - best.x >= 0 ? 'Lula +' : 'Flávio +') + dec(Math.abs(best.y - best.x), 1) + ' p.p.' },
+      '-', { k: 'Apurado', v: dec(best.pct, 0) + '%' }, { k: 'Eleitorado', v: fmtK(best.e) },
     ]);
   });
   hit.addEventListener('pointerleave', () => { hideTip(); ring.setAttribute('visibility', 'hidden'); });

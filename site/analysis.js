@@ -14,22 +14,22 @@ export const UF = {
   ro: { nm: 'Rondônia', rg: 'N', tz: -4 }, rr: { nm: 'Roraima', rg: 'N', tz: -4 },
   rs: { nm: 'Rio Grande do Sul', rg: 'S', tz: -3 }, sc: { nm: 'Santa Catarina', rg: 'S', tz: -3 },
   se: { nm: 'Sergipe', rg: 'NE', tz: -3 }, sp: { nm: 'São Paulo', rg: 'SE', tz: -3 },
-  to: { nm: 'Tocantins', rg: 'N', tz: -3 }, zz: { nm: 'Abroad', rg: 'EX', tz: null },
+  to: { nm: 'Tocantins', rg: 'N', tz: -3 }, zz: { nm: 'Exterior', rg: 'EX', tz: null },
 };
 export const UFS = Object.keys(UF);
 
 export const REGIONS = [
-  { id: 'N', nm: 'North' }, { id: 'NE', nm: 'Northeast' }, { id: 'CO', nm: 'Center-West' },
-  { id: 'SE', nm: 'Southeast' }, { id: 'S', nm: 'South' }, { id: 'EX', nm: 'Abroad' },
+  { id: 'N', nm: 'Norte' }, { id: 'NE', nm: 'Nordeste' }, { id: 'CO', nm: 'Centro-Oeste' },
+  { id: 'SE', nm: 'Sudeste' }, { id: 'S', nm: 'Sul' }, { id: 'EX', nm: 'Exterior' },
 ];
 REGIONS.forEach(r => (r.ufs = UFS.filter(u => UF[u].rg === r.id)));
 
 // Polls close at 17:00 local time; TSE only publishes after the last close (19:00 BRT).
 export const TZ_GROUPS = [
-  { id: 'tz3', nm: '17:00 BRT', sub: 'UTC−3 · 20 states + DF', ufs: UFS.filter(u => UF[u].tz === -3) },
-  { id: 'tz4', nm: '18:00 BRT', sub: 'UTC−4 · AM MT MS RO RR', ufs: UFS.filter(u => UF[u].tz === -4) },
-  { id: 'tz5', nm: '19:00 BRT', sub: 'UTC−5 · Acre', ufs: ['ac'] },
-  { id: 'ex', nm: 'Abroad', sub: '17:00 local, worldwide', ufs: ['zz'] },
+  { id: 'tz3', nm: '17:00 de Brasília', sub: 'UTC−3 · 20 estados + DF', ufs: UFS.filter(u => UF[u].tz === -3) },
+  { id: 'tz4', nm: '18:00 de Brasília', sub: 'UTC−4 · AM MT MS RO RR', ufs: UFS.filter(u => UF[u].tz === -4) },
+  { id: 'tz5', nm: '19:00 de Brasília', sub: 'UTC−5 · Acre', ufs: ['ac'] },
+  { id: 'ex', nm: 'Exterior', sub: '17:00 no horário local', ufs: ['zz'] },
 ];
 
 // First-round sources and second-round destinations for the transfer model.
@@ -39,13 +39,13 @@ export const SOURCES = [
   { id: 'cury', nm: 'Augusto Cury', sub: 'Avante', cols: ['v70'] },
   { id: 'renan', nm: 'Renan Santos', sub: 'Missão', cols: ['v14'] },
   { id: 'caiado', nm: 'Ronaldo Caiado', sub: 'PSD', cols: ['v55'] },
-  { id: 'others', nm: 'Zema + 6 others', sub: 'Novo, UP, PSTU, DC, PCB, Democrata, PCO', cols: ['v30', 'vout'] },
-  { id: 'bn', nm: 'Blank / null', sub: '1st round', cols: ['vb', 'vn'] },
-  { id: 'abst', nm: 'Did not vote', sub: '1st round', cols: ['a'] },
+  { id: 'others', nm: 'Zema + 6 outros', sub: 'Novo, UP, PSTU, DC, PCB, Democrata, PCO', cols: ['v30', 'vout'] },
+  { id: 'bn', nm: 'Branco / nulo', sub: 'no 1º turno', cols: ['vb', 'vn'] },
+  { id: 'abst', nm: 'Não votou', sub: 'no 1º turno', cols: ['a'] },
 ];
 export const DESTS = [
   { id: 'lula', nm: 'Lula' }, { id: 'flavio', nm: 'Flávio' },
-  { id: 'bn', nm: 'Blank / null' }, { id: 'abst', nm: 'Did not vote' },
+  { id: 'bn', nm: 'Branco / nulo' }, { id: 'abst', nm: 'Não votou' },
 ];
 
 export function scopeUfs(scope) {
@@ -135,61 +135,6 @@ const PRIOR = [
   [0.96, 0.01, 0.01, 0.02], [0.01, 0.96, 0.01, 0.02], [0.35, 0.35, 0.15, 0.15], [0.35, 0.35, 0.15, 0.15],
   [0.35, 0.35, 0.15, 0.15], [0.35, 0.35, 0.15, 0.15], [0.15, 0.15, 0.5, 0.2], [0.04, 0.04, 0.02, 0.9],
 ];
-// Fits each region separately (vote flows differ by region) and adds the flows up;
-// regions with too few counted municipalities fall back to the pooled fit.
-export function fitTransfersByRegion(muns) {
-  const pooled = fitTransfers(muns);
-  if (!pooled) return null;
-  return combine(REGIONS.map(rg => {
-    const sub = muns.filter(m => m.rg === rg.id);
-    return sub.some(m => m.r2?.est) ? fitTransfers(sub) || fitTransfers(sub, 1, pooled.T) : null;
-  }));
-}
-
-// Same idea one level down: each state on its own, small states borrow their region's fit.
-export function fitTransfersByState(muns) {
-  const pooled = fitTransfers(muns);
-  if (!pooled) return null;
-  const regionT = {};
-  for (const rg of REGIONS) regionT[rg.id] = fitTransfers(muns.filter(m => m.rg === rg.id))?.T || pooled.T;
-  return combine(UFS.map(uf => {
-    const sub = muns.filter(m => m.uf === uf);
-    return sub.some(m => m.r2?.est) ? fitTransfers(sub, 60) || fitTransfers(sub, 1, regionT[UF[uf].rg]) : null;
-  }));
-}
-
-function combine(fits) {
-  const S = SOURCES.length, D = DESTS.length;
-  const flows = Array.from({ length: S }, () => new Array(D).fill(0));
-  const tot = new Array(S).fill(0), observed = new Array(D).fill(0);
-  let n = 0;
-  for (const f of fits) {
-    if (!f) continue;
-    f.flows.forEach((row, i) => row.forEach((v, d) => (flows[i][d] += v)));
-    f.tot.forEach((v, i) => (tot[i] += v));
-    f.observed.forEach((v, d) => (observed[d] += v));
-    n += f.n;
-  }
-  const T = flows.map((row, i) => row.map(v => (tot[i] ? v / tot[i] : 0)));
-  const fitted = DESTS.map((_, d) => flows.reduce((s, r) => s + r[d], 0));
-  return { T, flows, tot, observed, fitted, n };
-}
-
-// Ecological estimates are model-sensitive, so fit several reasonable variants and
-// report the first as the estimate and the spread across all of them as its range.
-export function transferModels(muns, scope) {
-  const isRegion = REGIONS.some(r => r.id === scope);
-  const variants = scope === 'br'
-    ? [['by region', () => fitTransfersByRegion(muns)], ['pooled', () => fitTransfers(muns, 25)], ['by state', () => fitTransfersByState(muns)]]
-    : isRegion ? [['pooled', () => fitTransfers(muns, 25)], ['by state', () => fitTransfersByState(muns)]]
-    : [['pooled', () => fitTransfers(muns, 25)]];
-  const ok = variants.map(([nm, f]) => [nm, f()]).filter(v => v[1]);
-  if (!ok.length) return null;
-  const main = ok[0][1];
-  const range = main.T.map((row, i) => row.map((_, d) => [Math.min(...ok.map(v => v[1].T[i][d])), Math.max(...ok.map(v => v[1].T[i][d]))]));
-  return { ...main, range, models: ok.map(v => v[0]) };
-}
-
 export function fitTransfers(muns, minMuns = 40, fixedT = null) {
   const S = SOURCES.length, D = DESTS.length;
   const A = Array.from({ length: S }, () => new Float64Array(S));
@@ -304,44 +249,78 @@ export function contributions(G, areas, ufs, binSec = 300) {
   return bins;
 }
 
-// ---- Projection ----------------------------------------------------------
-// Fully counted municipalities count as they are; the rest of a partly counted one is
-// assumed to vote like its own counted sections; untouched municipalities get the
-// transfer model applied to their 1st-round result. T comes from the state's own fit
-// (if it has enough counted municipalities), else its region's, else the pooled fit.
-export function projectionTs(muns) {
-  const pooled = fitTransfers(muns);
+// ---- Shared fits, transfer rates and the forecast ---------------------------
+const xOf = r => [r.v13, r.v22, r.v70, r.v14, r.v55, r.v30 + r.vout, r.vb + r.vn, r.a];
+
+// One pass of fits reused by every view: pooled, per region and per state. Each
+// variant maps a municipality to the transfer matrix used for it; states with too
+// few counted municipalities borrow their region's fit, regions the pooled one.
+export function fitAll(muns) {
+  const pooled = fitTransfers(muns, 25);
   if (!pooled) return null;
   const region = {}, state = {};
   for (const rg of REGIONS) region[rg.id] = fitTransfers(muns.filter(m => m.rg === rg.id))?.T;
   for (const uf of UFS) state[uf] = fitTransfers(muns.filter(m => m.uf === uf), 60)?.T;
   return {
-    'by state': m => state[m.uf] || region[m.rg] || pooled.T,
-    'by region': m => region[m.rg] || pooled.T,
-    pooled: () => pooled.T,
+    n: pooled.n,
+    variants: [
+      ['por estado', m => state[m.uf] || region[m.rg] || pooled.T],
+      ['por região', m => region[m.rg] || pooled.T],
+      ['agrupado', () => pooled.T],
+    ],
   };
 }
 
-export function project(muns, Tof) {
-  let L = 0, F = 0, eDone = 0, eAll = 0;
+// Transfer rates in the counted areas under one variant.
+export function countedFlows(muns, Tof) {
+  const S = SOURCES.length, D = DESTS.length;
+  const flows = Array.from({ length: S }, () => new Array(D).fill(0)), tot = new Array(S).fill(0);
   for (const m of muns) {
     const q = m.r2, r = m.r1;
-    eAll += r.te;
-    if (q && q.est) {
-      const f = Math.min(1, q.est / r.te), k = f < 1 ? 1 + ((1 - f) * r.te) / q.est : 1;
-      L += q.v13 * k; F += q.v22 * k; eDone += q.est;
-    } else {
-      const T = Tof(m), x = [r.v13, r.v22, r.v70, r.v14, r.v55, r.v30 + r.vout, r.vb + r.vn, r.a];
-      for (let s = 0; s < x.length; s++) { L += x[s] * T[s][0]; F += x[s] * T[s][1]; }
-    }
+    if (!q || !q.est || !q.c || !r.te) continue;
+    const f = q.est / r.te, T = Tof(m);
+    xOf(r).forEach((v, s) => { tot[s] += v * f; T[s].forEach((p, d) => (flows[s][d] += v * f * p)); });
   }
-  return { L, F, share: L / (L + F), counted: eDone / eAll };
+  return { T: flows.map((row, i) => row.map(v => (tot[i] ? v / tot[i] : 0))), flows, tot };
 }
 
-export function projections(muns) {
-  const Ts = projectionTs(muns);
-  if (!Ts) return null;
-  const runs = Object.entries(Ts).map(([nm, Tof]) => ({ nm, ...project(muns, Tof) }));
+// Estimate = first variant; range = spread across all variants.
+export function transferRates(muns, fits) {
+  const runs = fits.variants.map(([nm, Tof]) => ({ nm, ...countedFlows(muns, Tof) }));
+  const main = runs[0];
+  const range = main.T.map((row, i) => row.map((_, d) => [Math.min(...runs.map(r => r.T[i][d])), Math.max(...runs.map(r => r.T[i][d]))]));
+  return { ...main, range, models: runs.map(r => r.nm), n: fits.n };
+}
+
+// Forecast bridge: every municipality's 1st-round result is pushed through its
+// transfer matrix. Where votes are already counted the model flows are rescaled so
+// each destination matches the actual count (the uncounted part of a partly counted
+// municipality is assumed to vote like its counted sections).
+export function bridge(muns, Tof) {
+  const S = SOURCES.length, D = DESTS.length;
+  const flows = Array.from({ length: S }, () => new Array(D).fill(0)), r1 = new Array(S).fill(0);
+  for (const m of muns) {
+    const r = m.r1, q = m.r2;
+    if (!r.te) continue;
+    const x = xOf(r), T = Tof(m);
+    const F = x.map((v, s) => T[s].map(p => v * p));
+    x.forEach((v, s) => (r1[s] += v));
+    if (q && q.est) {
+      const k = Math.max(1, r.te / q.est);
+      const actual = [q.v13, q.v22, q.vb + q.vn, q.a].map(v => v * k);
+      for (let d = 0; d < D; d++) {
+        const model = F.reduce((t, row) => t + row[d], 0);
+        if (model > 0) for (let s = 0; s < S; s++) flows[s][d] += (F[s][d] * actual[d]) / model;
+        else { const xs = x.reduce((a, b) => a + b, 0) || 1; for (let s = 0; s < S; s++) flows[s][d] += (actual[d] * x[s]) / xs; }
+      }
+    } else for (let s = 0; s < S; s++) for (let d = 0; d < D; d++) flows[s][d] += F[s][d];
+  }
+  const total = DESTS.map((_, d) => flows.reduce((t, row) => t + row[d], 0));
+  return { flows, r1, total, share: total[0] / (total[0] + total[1]) };
+}
+
+export function predict(muns, fits) {
+  const runs = fits.variants.map(([nm, Tof]) => ({ nm, ...bridge(muns, Tof) }));
   const shares = runs.map(r => r.share);
   return { main: runs[0], runs, lo: Math.min(...shares), hi: Math.max(...shares) };
 }
