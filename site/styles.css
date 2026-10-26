@@ -218,3 +218,21 @@ svg .col:hover .colbg { fill: var(--wash); }
 @media (max-width: 760px) { .bridge td.name { min-width: 150px; } .bridge td.bcell { width: auto; } }
 
 .fc-hist { margin: 4px 0 18px; }
+
+/* Abstenção */
+.tiles.inner { margin-bottom: 14px; }
+.tiles.inner .tile { background: transparent; }
+.grid-ab { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 28px; }
+.ab-bars { display: grid; gap: 3px; }
+.ab-row { display: grid; grid-template-columns: 150px 1fr 160px; gap: 10px; align-items: center; font-size: 12.5px; padding: 2px 0; }
+.ab-row.clickable { cursor: pointer; }
+.ab-row:hover { background: var(--wash); }
+.ab-nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ab-track { position: relative; height: 12px; }
+.ab-track::before { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
+.ab-bar { position: absolute; top: 1px; height: 10px; background: var(--bn); border-radius: 2px; }
+.ab-bar.up { background: var(--ink2); }
+.ab-v { color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.focus td, .focus th { font-size: 12.5px; }
+.ab-h3 { margin-top: 16px; font-size: 13.5px; }
+@media (max-width: 900px) { .grid-ab { grid-template-columns: 1fr; } .ab-row { grid-template-columns: 110px 1fr 130px; } }

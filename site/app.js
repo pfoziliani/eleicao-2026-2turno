@@ -328,6 +328,88 @@ function renderCompare() {
   }
 }
 
+// Abstenção: 2º turno apurado vs. 1º turno nos mesmos locais (proporcional ao eleitorado apurado).
+const FOCUS = ['ba38490', 'ba35157', 'ba36854', 'sp71072', 'pi12190', 'pb20516'];
+const abstOf = c => ({ a2: 1 - c.turn2, a1: 1 - c.turn1, d: 100 * (c.turn1 - c.turn2) });
+function renderAbstention() {
+  const all = scopeMuns(S.scope), c = A.compare(all), host = $('abTiles');
+  host.replaceChildren();
+  if (!c.r2.n) { h('p', { class: 'note' }, host, 'Ainda não há votos apurados neste recorte.'); return; }
+  const ab = abstOf(c);
+  tile(host, `Abstenção · ${scopeName(S.scope)} (seções apuradas)`, pct(ab.a2, 1), [{ b: pp(ab.d) }, ` ante ${pct(ab.a1, 1)} no 1º turno, nos mesmos locais`]);
+  tile(host, 'Eleitores a mais votando que no 1º turno', signedK((c.turn2 - c.turn1) * c.r2.e), [`nas seções já apuradas (${fmtK(c.r2.e)} eleitores)`]);
+  // Linhas: estados (Brasil ou região) ou maiores municípios (estado).
+  const isState = A.UF[S.scope];
+  let rows;
+  if (isState) rows = all.filter(m => m.r2?.est).sort((a, b) => b.r1.te - a.r1.te).slice(0, 15).map(m => ({ nm: title(m.nm), c: A.compare([m]) }));
+  else rows = A.scopeUfs(S.scope).map(uf => ({ nm: A.UF[uf].nm, uf, c: A.compare(all.filter(m => m.uf === uf)) }));
+  rows = rows.filter(r => r.c.r2.n).map(r => ({ ...r, ...abstOf(r.c) })).sort((a, b) => b.d - a.d);
+  const up = rows.filter(r => r.d > 0).length;
+  tile(host, isState ? 'Municípios grandes com aumento da abstenção' : 'Estados com aumento da abstenção', `${up} de ${rows.length}`, [up ? `maior alta: ${rows[0].nm} ${pp(rows[0].d)}` : `maior queda: ${rows[rows.length - 1].nm} ${pp(rows[rows.length - 1].d)}`]);
+  $('abBarsCap').firstChild.textContent = `Variação da abstenção vs. 1º turno, nos mesmos locais — ${isState ? 'maiores municípios' : 'por estado'} `;
+  const bars = $('abBars');
+  bars.replaceChildren();
+  const max = Math.max(1, ...rows.map(r => Math.abs(r.d)));
+  for (const r of rows) {
+    const row = h('div', { class: 'ab-row' + (r.uf ? ' clickable' : '') }, bars);
+    if (r.uf) row.addEventListener('click', () => setScope(r.uf));
+    h('span', { class: 'ab-nm' }, row, r.nm);
+    const track = h('span', { class: 'ab-track' }, row);
+    const bar = h('span', { class: 'ab-bar' + (r.d > 0 ? ' up' : '') }, track);
+    bar.style.width = (50 * Math.abs(r.d)) / max + '%';
+    bar.style[r.d > 0 ? 'left' : 'right'] = '50%';
+    h('span', { class: 'ab-v' }, row, `${pp(r.d)} · ${pct(r.a1, 1)} → ${pct(r.a2, 1)}`);
+    row.addEventListener('pointermove', ev => showTip(ev, r.nm, [{ k: 'Abstenção 1º turno (mesmos locais)', v: pct(r.a1, 2) }, { k: 'Abstenção 2º turno', v: pct(r.a2, 2) }, { k: 'Variação', v: pp(r.d, 2) }, { k: 'Eleitorado apurado', v: fmtK(r.c.r2.e) }]));
+    row.addEventListener('pointerleave', hideTip);
+  }
+
+  // Cidades citadas: variação na cidade vs. no resto do estado e efeito estimado na margem.
+  const tb = $('abFocus');
+  tb.replaceChildren();
+  const hr = h('tr', {}, h('thead', {}, tb));
+  for (const [t, cl] of [['Cidade', ''], ['Apurado', 'num'], ['Abstenção 1º → 2º', 'num'], ['Δ cidade', 'num'], ['Δ resto do estado', 'num'], ['Diferença', 'num'], ['Efeito na margem*', 'num']]) h('th', { class: cl }, hr, t);
+  const body = h('tbody', {}, tb);
+  let net = 0;
+  for (const key of FOCUS) {
+    const m = (S.muns || []).find(x => x.key === key);
+    if (!m) continue;
+    const cc = A.compare([m]), rest = A.compare((S.muns || []).filter(x => x.uf === m.uf && x.key !== key));
+    const tr = h('tr', {}, body);
+    const nm = h('td', { class: 'name' }, tr, title(m.nm) + ' ');
+    h('span', { class: 'muted' }, nm, m.uf.toUpperCase());
+    if (!cc.r2.n) { h('td', { colspan: 6, class: 'muted' }, tr, 'ainda não apurado'); continue; }
+    const a = abstOf(cc), b = abstOf(rest), diff = a.d - b.d;
+    // Eleitores "a mais" (ou a menos) que o padrão do resto do estado, votando como quem votou na cidade.
+    const extra = (-diff / 100) * m.r1.te, eff = extra * ((m.r2.v13 - m.r2.v22) / m.r2.c);
+    net += eff;
+    h('td', { class: 'num' }, tr, pct(m.r2.est / m.r1.te, 0));
+    h('td', { class: 'num' }, tr, `${pct(a.a1, 1)} → ${pct(a.a2, 1)}`);
+    h('td', { class: 'num' }, tr, pp(a.d));
+    h('td', { class: 'num' }, tr, pp(b.d));
+    h('td', { class: 'num' }, tr, pp(diff));
+    h('td', { class: 'num' }, tr, `${eff >= 0 ? 'Lula' : 'Flávio'} +${fmtK(Math.abs(eff))}`);
+  }
+  const br = S.live.br, lead = br ? Math.abs(br.L - br.F) : NaN;
+  $('abFocusNote').textContent = `* Votos líquidos que o candidato indicado ganhou porque a abstenção na cidade variou diferente do resto do estado: se ela tivesse acompanhado o resto do estado, ele teria esse tanto a menos de vantagem (supondo que os eleitores a mais ou a menos votassem como os demais da cidade). Somando as ${FOCUS.length} cidades: ${net >= 0 ? 'Lula' : 'Flávio'} +${fmtK(Math.abs(net))} votos líquidos${isFinite(lead) ? `, frente a uma vantagem nacional atual de ${fmtK(lead)}` : ''}. A diferença reflete tudo o que mudou na cidade entre os turnos (transporte, mobilização, prorrogação) — não isola o efeito da prorrogação.`;
+
+  // Municípios com maiores altas e quedas.
+  const big = (S.muns || []).filter(m => m.r1.te >= 20000 && m.r2?.est && m.r2.est / m.r1.te >= 0.9).map(m => ({ m, ...abstOf(A.compare([m])) }));
+  const fill = (id, list, label) => {
+    const ol = $(id);
+    ol.replaceChildren();
+    h('li', { class: 'head' }, ol, label);
+    for (const x of list) {
+      const li = h('li', {}, ol);
+      const n = h('span', { class: 'nm' }, li, title(x.m.nm) + ' ');
+      h('small', {}, n, x.m.uf.toUpperCase());
+      h('span', { class: 'v' }, li, pp(x.d));
+      li.title = `${title(x.m.nm)}: ${pct(x.a1, 1)} → ${pct(x.a2, 1)}`;
+    }
+  };
+  fill('abUp', [...big].sort((a, b) => b.d - a.d).slice(0, 8), 'Abstenção subiu');
+  fill('abDown', [...big].sort((a, b) => a.d - b.d).slice(0, 8), 'Abstenção caiu');
+}
+
 const DEST_CLASS = ['lula', 'flavio', 'bn', 'abst'];
 const DEST_COLOR = ['--lula', '--flavio', '--bn', '--abst'];
 function renderTransfers() {
@@ -501,6 +583,7 @@ function renderScoped() {
     renderTiles(A.compare(scopeMuns(S.scope)));
     renderForecast();
     renderCompare();
+    renderAbstention();
     renderTransfers();
     renderMunicipalities();
   }
