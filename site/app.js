@@ -288,6 +288,110 @@ function renderForecastHistory() {
   co.append(` Na contagem bruta, Lula foi de ${pct(first[4], 1)} para ${pct(last[4], 1)} no mesmo período.`);
 }
 
+// O que explica a virada: conta exata do "pool" de votos novos + divisão da margem pelo modelo.
+const VR_PARTS = [
+  ['third', 'Eleitores da terceira via', 'Cury, Renan, Caiado, Zema e outros'],
+  ['bn', 'Brancos/nulos do 1º turno', 'que escolheram um lado'],
+  ['turnout', 'Quem não votou no 1º turno', 'e foi votar no 2º'],
+  ['swap', 'Troca direta entre os dois', 'eleitores de um que votaram no outro'],
+  ['demob', 'Desmobilização diferencial', 'eleitores próprios que anularam ou faltaram'],
+];
+function renderVirada() {
+  const fits = nationalFits(), ms = scopeMuns(S.scope);
+  const pool = $('vrPool'), wf = $('vrWf'), tb = $('vrAreas');
+  [pool, wf, tb].forEach(e => e.replaceChildren());
+  if (!fits || !ms.some(m => m.r2?.est)) { $('vrDesc').textContent = 'Ainda não há votos apurados neste recorte.'; return; }
+  const runs = fits.variants.map(([nm, Tof]) => ({ nm, ...A.decomposeMargin(ms, Tof) })), d = runs[0];
+  const lead = v => `${v >= 0 ? 'Lula' : 'Flávio'} +${fmtK(Math.abs(v))}`;
+  $('vrDesc').textContent = `${scopeName(S.scope)}: a margem foi de ${lead(d.r1m)} no 1º turno para ${lead(d.r2m)} no 2º (estimativa para a apuração completa) — uma variação de ${signedK(d.total)} a favor de ${d.total >= 0 ? 'Lula' : 'Flávio'}.`;
+
+  // 1) Conta exata: o que os dois ganharam juntos = terceira via + queda de brancos/nulos + queda da abstenção.
+  const P = d.pool, gain = d.gainL + d.gainF;
+  const bar = (label, segs) => {
+    h('div', { class: 'vr-lbl' }, pool, label);
+    const b = h('div', { class: 'tr-bar' }, pool);
+    const tot = segs.reduce((s, x) => s + Math.max(0, x.v), 0) || 1;
+    for (const x of segs) {
+      if (x.v <= 0) continue;
+      const seg = h('div', {}, b);
+      seg.style.width = `calc(${(100 * x.v) / tot}% - 2px)`;
+      seg.style.background = `var(${x.color})`;
+      seg.style.color = x.ink || '#fff';
+      if (x.v / tot >= 0.12) seg.textContent = `${fmtK(x.v)}`;
+      seg.addEventListener('pointermove', ev => showTip(ev, x.nm, [{ k: 'Votos', v: fmtK(x.v), color: x.color }, { k: 'Participação', v: pct(x.v / tot, 1) }]));
+      seg.addEventListener('pointerleave', hideTip);
+    }
+    const lg = h('div', { class: 'legend vr-lg' }, pool);
+    for (const x of segs) {
+      const it = h('span', { class: 'item' }, lg);
+      h('span', { class: 'sw' }, it).style.background = `var(${x.color})`;
+      it.append(`${x.nm} ${x.v >= 0 ? '' : '−'}${fmtK(Math.abs(x.v))}`);
+    }
+  };
+  const mi1 = v => dec(v / 1e6, 1) + ' mi';
+  bar(`Votos disponíveis: ${mi1(P.third + P.bnDrop + P.abDrop)}`, [
+    { nm: 'Terceira via (1º turno)', v: P.third, color: '--ink2', ink: 'var(--surface)' },
+    { nm: P.bnDrop >= 0 ? 'Queda de brancos/nulos' : 'Alta de brancos/nulos', v: P.bnDrop, color: '--bn' },
+    { nm: P.abDrop >= 0 ? 'Queda da abstenção' : 'Alta da abstenção', v: P.abDrop, color: '--abst', ink: 'var(--ink)' },
+  ]);
+  bar(`Quem ficou com eles: ${mi1(gain)}`, [{ nm: 'Lula', v: d.gainL, color: '--lula' }, { nm: 'Flávio', v: d.gainF, color: '--flavio' }]);
+  const shareL = d.gainL / gain, need = 0.5 - d.r1m / (2 * gain);
+  $('vrPoolNote').textContent = `Como o eleitorado é o mesmo nos dois turnos, tudo o que Lula e Flávio ganharam juntos (${fmtK(gain)}) só pode ter vindo dos votos da terceira via, da queda de brancos/nulos e da queda da abstenção. Lula ficou com ${pct(shareL, 0)} desses votos; ${d.r1m < 0 ? `para virar a desvantagem do 1º turno, precisava de ${pct(need, 0)}` : `já liderava no 1º turno, e ampliou a vantagem`}. ${P.abDrop < 0 || P.bnDrop < 0 ? 'Valores negativos (alta de abstenção ou de brancos/nulos) reduzem o total disponível.' : ''}`;
+
+  // 2) Cascata da margem.
+  const steps = [{ nm: '1º turno (4/10)', a: 0, b: d.r1m, kind: 'base' }];
+  let acc = d.r1m;
+  for (const [k, nm, sub] of VR_PARTS) {
+    const v = d[k], vals = runs.map(r => r[k]);
+    steps.push({ nm, sub, a: acc, b: acc + v, v, lo: Math.min(...vals), hi: Math.max(...vals) });
+    acc += v;
+  }
+  steps.push({ nm: '2º turno', a: 0, b: d.r2m, kind: 'total' });
+  const lo = Math.min(0, ...steps.flatMap(s => [s.a, s.b])), hi = Math.max(0, ...steps.flatMap(s => [s.a, s.b]));
+  const x = v => (100 * (v - lo)) / (hi - lo || 1);
+  wf.style.setProperty('--zero', x(0) + '%');
+  for (const s of steps) {
+    const row = h('div', { class: 'wf-row' + (s.kind ? ' ' + s.kind : '') }, wf);
+    const nm = h('div', { class: 'wf-nm' }, row, s.nm);
+    if (s.sub) h('small', {}, nm, s.sub);
+    const track = h('div', { class: 'wf-track' }, row);
+    const b = h('div', { class: 'wf-bar' }, track);
+    b.style.left = x(Math.min(s.a, s.b)) + '%';
+    b.style.width = Math.max(0.4, x(Math.max(s.a, s.b)) - x(Math.min(s.a, s.b))) + '%';
+    b.style.background = `var(${(s.kind ? s.b : s.v) >= 0 ? '--lula' : '--flavio'})`;
+    const val = h('div', { class: 'wf-v' }, row);
+    if (s.kind) val.textContent = lead(s.b);
+    else {
+      h('b', {}, val, `${signedK(s.v)} · ${dec((100 * s.v) / d.total, 0)}%`);
+      if (runs.length > 1) h('small', {}, val, `faixa ${signedK(s.lo)} a ${signedK(s.hi)}`);
+    }
+    if (!s.kind) {
+      row.addEventListener('pointermove', ev => showTip(ev, s.nm, [{ k: 'Efeito na margem', v: signedK(s.v), color: s.v >= 0 ? '--lula' : '--flavio' }, { k: '% da virada', v: dec((100 * s.v) / d.total, 1) + '%' }, ...runs.map(r => ({ k: `modelo ${r.nm}`, v: signedK(r[VR_PARTS.find(p => p[1] === s.nm)[0]]) }))]));
+      row.addEventListener('pointerleave', hideTip);
+    }
+  }
+  const comb = runs.map(r => r.third + r.bn), turn = runs.map(r => r.turnout);
+  $('vrNote').textContent = `Terceira via + brancos/nulos somam ${signedK(Math.min(...comb))} a ${signedK(Math.max(...comb))} (${dec((100 * Math.min(...comb)) / d.total, 0)}–${dec((100 * Math.max(...comb)) / d.total, 0)}% da virada) em todas as variantes do modelo; quem não votou no 1º turno, ${signedK(Math.min(...turn))} a ${signedK(Math.max(...turn))}. A divisão entre terceira via e brancos/nulos é a parte mais incerta: as duas fontes se concentram nos mesmos lugares e o modelo não consegue separá-las bem — juntas, o resultado é robusto.`;
+
+  // 3) Por área (exato para a margem; divisão pelo modelo por estado).
+  if (A.UF[S.scope]) return;
+  const hr = h('tr', {}, h('thead', {}, tb));
+  for (const [t, c] of [['Área', ''], ['Variação da margem', 'num'], ['% da virada', 'num'], ['Terceira via', 'num'], ['Brancos/nulos', 'num'], ['Não votou no 1º', 'num'], ['Troca direta', 'num'], ['Desmobilização', 'num']]) h('th', { class: c }, hr, t);
+  const body = h('tbody', {}, tb);
+  const areas = S.scope === 'br' ? A.REGIONS.map(r => ({ id: r.id, nm: r.nm, color: REGION_COLOR[r.id], ufs: r.ufs })) : A.scopeUfs(S.scope).map(u => ({ id: u, nm: A.UF[u].nm, ufs: [u] }));
+  const rows = areas.map(a => ({ a, d: A.decomposeMargin(ms.filter(m => a.ufs.includes(m.uf)), fits.variants[0][1]) })).sort((p, q) => q.d.total - p.d.total);
+  for (const { a, d: r } of rows) {
+    const tr = h('tr', { class: 'clickable' }, body);
+    tr.addEventListener('click', () => setScope(a.id));
+    const nm = h('td', { class: 'name' }, tr);
+    if (a.color) h('span', { class: 'swatch' }, nm).style.background = `var(${a.color})`;
+    nm.append(a.nm);
+    h('td', { class: 'num' }, tr, signedK(r.total));
+    h('td', { class: 'num' }, tr, pct(r.total / d.total, 0));
+    for (const k of ['third', 'bn', 'turnout', 'swap', 'demob']) h('td', { class: 'num' }, tr, signedK(r[k]));
+  }
+}
+
 function renderCompare() {
   const tb = $('cmpTable');
   tb.replaceChildren();
@@ -599,6 +703,7 @@ function renderScoped() {
   if (S.muns) {
     renderTiles(A.compare(scopeMuns(S.scope)));
     renderForecast();
+    renderVirada();
     renderCompare();
     renderAbstention();
     renderLate();

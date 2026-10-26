@@ -348,3 +348,21 @@ export function forecastPoint(r1, r2) {
   }
   return out;
 }
+
+// ---- What explains the turnaround ----------------------------------------------
+// Change in the Lula − Flávio margin from the 1st to the 2nd round, split by where the
+// votes came from. Exact given the bridge flows; `demob` is the remainder (own voters who
+// spoiled or stayed home, net), so the parts always add up to the total.
+export function decomposeMargin(muns, Tof) {
+  const b = bridge(muns, Tof), f = b.flows, L = 0, F = 1, BN = 2, AB = 3;
+  const third = [2, 3, 4, 5].reduce((s, i) => s + f[i][L] - f[i][F], 0);
+  const bn = f[6][L] - f[6][F], turnout = f[7][L] - f[7][F], swap = 2 * (f[1][L] - f[0][F]);
+  const r1m = b.r1[0] - b.r1[1], r2m = b.total[L] - b.total[F], total = r2m - r1m;
+  const thirdPool = b.r1[2] + b.r1[3] + b.r1[4] + b.r1[5];
+  return {
+    r1m, r2m, total, third, bn, turnout, swap, demob: total - third - bn - turnout - swap,
+    // Model-free accounting: what both finalists gained together came from these three.
+    gainL: b.total[L] - b.r1[0], gainF: b.total[F] - b.r1[1],
+    pool: { third: thirdPool, bnDrop: b.r1[6] - b.total[BN], abDrop: b.r1[7] - b.total[AB] },
+  };
+}
