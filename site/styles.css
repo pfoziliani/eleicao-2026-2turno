@@ -236,3 +236,5 @@ svg .col:hover .colbg { fill: var(--wash); }
 .focus td, .focus th { font-size: 12.5px; }
 .ab-h3 { margin-top: 16px; font-size: 13.5px; }
 @media (max-width: 900px) { .grid-ab { grid-template-columns: 1fr; } .ab-row { grid-template-columns: 110px 1fr 130px; } }
+
+figure > .desc + .legend { margin-top: 8px; }

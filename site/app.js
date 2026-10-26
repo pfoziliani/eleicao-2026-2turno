@@ -3,7 +3,7 @@ import { h, legend, lineChart, contribChart, mixBars, scatter, dumbbell, swingBa
 
 const TSE = 'https://resultados.tse.jus.br/oficial/ele2026/6258/dados';
 const LIVE_EVERY = 30e3, AGG_EVERY = 60e3;
-const S = { scope: 'br', r1: null, r2: null, tl: null, fc: null, live: {}, liveRows: {}, lastLive: 0, lastAgg: 0, sort: { k: 'ts', dir: -1 } };
+const S = { scope: 'br', r1: null, r2: null, tl: null, fc: null, late: null, live: {}, liveRows: {}, lastLive: 0, lastAgg: 0, sort: { k: 'ts', dir: -1 } };
 
 const $ = id => document.getElementById(id);
 const nf = new Intl.NumberFormat('pt-BR');
@@ -49,7 +49,8 @@ async function loadLive() {
 
 async function loadAgg() {
   const q = '?t=' + Date.now();
-  const [r2, tl, fc] = await Promise.allSettled([getJSON('data/r2-mun.json' + q), getJSON('data/timeline.json' + q), getJSON('data/forecast.json' + q)]);
+  const [r2, tl, fc, late] = await Promise.allSettled([getJSON('data/r2-mun.json' + q), getJSON('data/timeline.json' + q), getJSON('data/forecast.json' + q), getJSON('data/late.json' + q)]);
+  if (late.status === 'fulfilled') S.late = late.value;
   if (r2.status === 'fulfilled') { S.r2 = r2.value; S.muns = A.joinMunicipalities(S.r1, S.r2); }
   if (tl.status === 'fulfilled') S.tl = tl.value;
   if (fc.status === 'fulfilled') S.fc = fc.value;
@@ -410,6 +411,22 @@ function renderAbstention() {
   fill('abDown', [...big].sort((a, b) => a.d - b.d).slice(0, 8), 'Abstenção caiu');
 }
 
+// Seções apuradas em cada janela vs. 1º turno do mesmo município (indício das urnas abertas até 19h).
+function renderLate() {
+  const L = S.late, host = $('chLate'), co = $('lateCallout');
+  co.replaceChildren();
+  if (!L?.t?.length) { host.replaceChildren(); return; }
+  const line = (id, nm, color) => ({ id, nm, color, pts: L.t.map((t, i) => { const [est, c, c1] = L.regions[id][i]; return est > 5000 ? [t, (100 * (c - c1)) / est] : null; }).filter(Boolean) });
+  const series = [line('BR', 'Brasil', '--muted'), ...A.REGIONS.filter(r => r.id !== 'EX').map(r => line(r.id, r.nm, REGION_COLOR[r.id]))];
+  legend($('lgLate'), series.map(s => ({ nm: s.nm, color: s.color, line: true })));
+  const vals = series.flatMap(s => s.pts.map(p => p[1]));
+  lineChart(host, { series, y0: Math.min(0, Math.floor(Math.min(...vals))), y1: Math.ceil(Math.max(...vals)), yFmt: v => (v > 0 ? '+' : '') + dec(v, 0) + ' p.p.', tipFmt: v => (v >= 0 ? '+' : '') + dec(v, 2) + ' p.p.', refs: [{ v: 0 }], endLabels: false, height: 220 });
+  const b = L.bound, ne = b.byRegion?.NE, br = S.live.br, lead = br ? Math.abs(br.L - br.F) : NaN;
+  co.append('Teto do efeito da prorrogação: ');
+  h('b', {}, co, `~${fmtK(b.extra)} eleitores a mais e ${b.net >= 0 ? 'Lula' : 'Flávio'} +${fmtK(Math.abs(b.net))} votos líquidos`);
+  co.append(`${ne ? ` (${fmtK(ne.extra)} desses eleitores no Nordeste)` : ''}, atribuindo à prorrogação todo o comparecimento extra das seções apuradas a partir das ${b.refUntil}. ${isFinite(lead) ? `É ${dec((100 * Math.abs(b.net)) / lead, 1)}% da vantagem nacional atual de ${fmtK(lead)} — não muda o resultado.` : ''} O número exato depende dos horários de encerramento nos boletins de urna, que o TSE ainda vai publicar.`);
+}
+
 const DEST_CLASS = ['lula', 'flavio', 'bn', 'abst'];
 const DEST_COLOR = ['--lula', '--flavio', '--bn', '--abst'];
 function renderTransfers() {
@@ -584,6 +601,7 @@ function renderScoped() {
     renderForecast();
     renderCompare();
     renderAbstention();
+    renderLate();
     renderTransfers();
     renderMunicipalities();
   }

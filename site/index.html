@@ -107,6 +107,13 @@
       </figure>
     </div>
     <figure>
+      <figcaption>Seções apuradas por último tiveram mais eleitores? <span class="muted">· comparecimento das seções apuradas em cada janela de 15 min vs. o 1º turno do mesmo município (Brasil e regiões)</span></figcaption>
+      <p class="desc">As urnas que ficaram abertas até as 19h fecharam e transmitiram por último, então devem estar nas janelas finais da apuração. Sem o boletim de cada urna, este é um indício indireto: as seções apuradas no fim também podem ser de bairros com perfil diferente.</p>
+      <div class="legend" id="lgLate"></div>
+      <div class="chart" id="chLate"></div>
+      <p class="callout" id="lateCallout"></p>
+    </figure>
+    <figure>
       <figcaption>Cidades no centro da disputa sobre transporte e prorrogação <span class="muted">· comparadas com o resto do próprio estado</span></figcaption>
       <div class="table-wrap"><table class="focus" id="abFocus"></table></div>
       <p class="note" id="abFocusNote"></p>
@@ -192,6 +199,7 @@
       <li><strong>Variação nos mesmos locais:</strong> para cada município com votos do 2º turno apurados, o resultado do 1º turno é ponderado pela fração do eleitorado já apurada e somado. Isso evita comparar uma apuração parcial com um resultado completo.</li>
       <li><strong>Transferência de votos:</strong> regressão ecológica com restrições (cada grupo do 1º turno se divide entre Lula / Flávio / branco-nulo / não votou, com parcelas ≥ 0 que somam 100%), ajustada por estado (estados com poucos municípios apurados usam o ajuste da região) e ponderada pelo eleitorado. A faixa mostra a diferença entre três variantes (por estado, por região, agrupado). É uma estimativa de fluxos agregados, não uma medida do voto individual.</li>
       <li><strong>Previsão:</strong> o 1º turno de cada município passa pela matriz de transferência do seu estado; onde já há votos apurados, os fluxos são reescalados para bater com a contagem real (a parte não apurada de um município parcialmente apurado vota como suas seções já apuradas). Supõe que o que falta apurar se comporta como o já apurado no mesmo estado — o que nem sempre acontece no início da apuração.</li>
+      <li><strong>Prorrogação e abstenção:</strong> abstenção do 2º turno nas seções apuradas vs. a do 1º turno nos mesmos municípios (proporcional ao eleitorado apurado). Para as seções apuradas por último, cada retrato municipal (~2 min) é comparado com o anterior e o comparecimento das seções novas é medido contra o 1º turno do mesmo município; o teto atribui à prorrogação todo o comparecimento acima do observado nas seções apuradas até 20:15 na mesma região, com esses eleitores votando como os demais da janela.</li>
       <li><strong>Linha do tempo:</strong> os arquivos do TSE dos 27 estados e do exterior foram capturados a cada 20 s desde 19:31 (≈5,7% apurado). A variação no % de Lula é dividida exatamente por área: Δ% = Σ (ΔLula − % × Δválidos) / válidos.</li>
       <li>Código e dados: <a href="https://github.com/pfoziliani/eleicao-2026-2turno">github.com/pfoziliani/eleicao-2026-2turno</a>. Painel não oficial; resultado oficial em <a href="https://resultados.tse.jus.br">resultados.tse.jus.br</a>.</li>
     </ul>
