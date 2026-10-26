@@ -256,3 +256,6 @@ figure > .desc + .legend { margin-top: 8px; }
 .wf-v { font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: right; }
 .wf-v small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
 @media (max-width: 900px) { .grid-vr { grid-template-columns: 1fr; } .wf-row { grid-template-columns: 120px 1fr 110px; } }
+
+.grid-pq { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.grid-pq #chPolls { max-width: 900px; }

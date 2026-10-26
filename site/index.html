@@ -99,6 +99,26 @@
     <div class="table-wrap"><table class="cmp" id="vrAreas"></table></div>
   </section>
 
+  <section class="card" aria-labelledby="pqTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="pqTitle">Pesquisas × resultado (Brasil)</h2>
+        <p class="desc" id="pqDesc"></p>
+      </div>
+    </div>
+    <div class="grid-pq">
+      <figure>
+        <figcaption>Lula nas pesquisas do 2º turno, % dos votos válidos <span class="muted">· cada ponto é uma pesquisa (data do fim do campo); linha = média móvel de 5 dias</span></figcaption>
+        <div class="chart" id="chPolls"></div>
+      </figure>
+      <figure>
+        <figcaption>Para onde iriam os votos, segundo as pesquisas × o que o resultado indica <span class="muted">· % de cada grupo do 1º turno: Lula × Flávio</span></figcaption>
+        <div class="table-wrap"><table class="focus" id="pqTable"></table></div>
+        <p class="note" id="pqNote"></p>
+      </figure>
+    </div>
+  </section>
+
   <section class="card" aria-labelledby="cmpTitle">
     <div class="card-head">
       <div>
@@ -219,7 +239,7 @@
     <ul>
       <li><strong>Fonte oficial:</strong> feed de resultados do TSE (<code>resultados.tse.jus.br</code>), eleição 6257 (1º turno, 4/10/2026) e 6258 (2º turno, 25/10/2026). Os números principais e por estado são lidos diretamente do TSE pelo seu navegador a cada 30 s.</li>
       <li><strong>Variação nos mesmos locais:</strong> para cada município com votos do 2º turno apurados, o resultado do 1º turno é ponderado pela fração do eleitorado já apurada e somado. Isso evita comparar uma apuração parcial com um resultado completo.</li>
-      <li><strong>Transferência de votos:</strong> regressão ecológica com restrições (cada grupo do 1º turno se divide entre Lula / Flávio / branco-nulo / não votou, com parcelas ≥ 0 que somam 100%), ajustada por estado (estados com poucos municípios apurados usam o ajuste da região) e ponderada pelo eleitorado. A faixa mostra a diferença entre três variantes (por estado, por região, agrupado). É uma estimativa de fluxos agregados, não uma medida do voto individual.</li>
+      <li><strong>Transferência de votos (como funciona):</strong> o voto é secreto, então ninguém observa quem trocou de candidato. Para cada estado, o modelo procura taxas únicas — por exemplo, “x% dos eleitores de Cury votaram em Lula” — que, aplicadas ao resultado do 1º turno de cada município, reproduzam ao mesmo tempo o 2º turno de todos os municípios daquele estado. Se Lula cresceu mais justamente onde Cury era mais forte, a taxa Cury→Lula sobe. Tecnicamente: regressão ecológica com restrições (cada grupo do 1º turno se divide entre Lula / Flávio / branco-nulo / não votou, com parcelas ≥ 0 que somam 100%), ajustada por estado (estados com poucos municípios apurados usam o ajuste da região) e ponderada pelo eleitorado. A faixa mostra a diferença entre três variantes (por estado, por região, agrupado). É uma estimativa de fluxos agregados, não uma medida do voto individual.</li>
       <li><strong>Previsão:</strong> o 1º turno de cada município passa pela matriz de transferência do seu estado; onde já há votos apurados, os fluxos são reescalados para bater com a contagem real (a parte não apurada de um município parcialmente apurado vota como suas seções já apuradas). Supõe que o que falta apurar se comporta como o já apurado no mesmo estado — o que nem sempre acontece no início da apuração.</li>
       <li><strong>Prorrogação e abstenção:</strong> abstenção do 2º turno nas seções apuradas vs. a do 1º turno nos mesmos municípios (proporcional ao eleitorado apurado). Para as seções apuradas por último, cada retrato municipal (~2 min) é comparado com o anterior e o comparecimento das seções novas é medido contra o 1º turno do mesmo município; o teto atribui à prorrogação todo o comparecimento acima do observado nas seções apuradas até 20:15 na mesma região, com esses eleitores votando como os demais da janela.</li>
       <li><strong>Linha do tempo:</strong> os arquivos do TSE dos 27 estados e do exterior foram capturados a cada 20 s desde 19:31 (≈5,7% apurado). A variação no % de Lula é dividida exatamente por área: Δ% = Σ (ΔLula − % × Δválidos) / válidos.</li>

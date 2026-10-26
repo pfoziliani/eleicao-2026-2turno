@@ -281,3 +281,47 @@ export function swingBar(pp, max = 5, w = 80) {
   if (isFinite(pp) && len > 0.3) el('rect', { x: pp > 0 ? mid - len : mid, y: 4, width: len, height: 8, rx: 2, fill: `var(${pp > 0 ? '--lula' : '--flavio'})` }, s);
   return s;
 }
+
+// ---- Polls vs result: one dot per poll (Lula's share of valid votes), a rolling
+// mean, and the actual result as a reference line.
+export function pollChart(host, { polls, result, height = 260 }) {
+  host.replaceChildren();
+  if (!polls.length) return;
+  const W = Math.max(300, host.clientWidth), H = height, m = { l: 40, r: 110, t: 10, b: 24 };
+  const day = s => Date.parse(s + 'T12:00:00Z') / 1000;
+  const t0 = Math.min(...polls.map(p => day(p.end))) - 86400, t1 = day('2026-10-25');
+  const vals = polls.map(p => p.v);
+  const y0 = Math.min(46, Math.floor(Math.min(...vals))), y1 = Math.max(53, Math.ceil(result + 1));
+  const x = scale(t0, t1, m.l, W - m.r), y = scale(y0, y1, H - m.b, m.t);
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img' }, host);
+  for (const v of ticks(y0, y1, 4)) {
+    el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: 'grid' }, svg);
+    el('text', { x: m.l - 6, y: y(v) + 4, class: 'tick', 'text-anchor': 'end' }, svg, dec(v, 0) + '%');
+  }
+  el('line', { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: 'axis' }, svg);
+  for (let t = t0 + 86400; t <= t1; t += 4 * 86400) el('text', { x: x(t), y: H - 6, class: 'tick', 'text-anchor': 'middle' }, svg, new Date(t * 1000).toISOString().slice(8, 10) + '/10');
+  el('line', { x1: m.l, x2: W - m.r, y1: y(50), y2: y(50), class: 'axis' }, svg);
+  el('text', { x: W - m.r + 6, y: y(50) + 4, class: 'lbl' }, svg, 'empate (50%)');
+  el('line', { x1: m.l, x2: W - m.r, y1: y(result), y2: y(result), stroke: 'var(--ink)', 'stroke-width': 1.5 }, svg);
+  el('text', { x: W - m.r + 6, y: y(result) + 4, class: 'lbl-strong' }, svg, `resultado ${dec(result, 2)}%`);
+  // 5-day trailing mean of the polls.
+  const days = [];
+  for (let t = t0 + 86400 * 3; t <= t1 - 86400; t += 86400) {
+    const w = polls.filter(p => day(p.end) <= t && day(p.end) > t - 5 * 86400);
+    if (w.length >= 3) days.push([t, w.reduce((s, p) => s + p.v, 0) / w.length]);
+  }
+  if (days.length > 1) el('path', { d: days.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ',' + y(p[1]).toFixed(1)).join(''), class: 'line', stroke: 'var(--lula)' }, svg);
+  const pts = polls.map((p, i) => ({ p, cx: x(day(p.end)) + ((i % 5) - 2) * 1.6, cy: y(p.v) }));
+  for (const q of pts) el('circle', { cx: q.cx, cy: q.cy, r: 4, fill: 'var(--lula)', 'fill-opacity': 0.45, stroke: 'var(--surface)', 'stroke-width': 1.5 }, svg);
+  const ring = el('circle', { r: 7, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.5, visibility: 'hidden', 'pointer-events': 'none' }, svg);
+  const hit = el('rect', { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, class: 'hit' }, svg);
+  hit.addEventListener('pointermove', ev => {
+    const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) * W) / r.width, py = ((ev.clientY - r.top) * H) / r.height;
+    let best = null, bd = 24 * 24;
+    for (const q of pts) { const d = (q.cx - px) ** 2 + (q.cy - py) ** 2; if (d < bd) { bd = d; best = q; } }
+    if (!best) { hideTip(); ring.setAttribute('visibility', 'hidden'); return; }
+    ring.setAttribute('cx', best.cx); ring.setAttribute('cy', best.cy); ring.setAttribute('visibility', 'visible');
+    showTip(ev, `${best.p.inst} · ${best.p.dates}`, [{ k: 'Lula (votos válidos)', v: dec(best.p.v, 1) + '%', color: '--lula' }, { k: 'Erro vs. resultado', v: (result - best.p.v >= 0 ? '+' : '−') + dec(Math.abs(result - best.p.v), 1) + ' p.p. para Lula' }]);
+  });
+  hit.addEventListener('pointerleave', () => { hideTip(); ring.setAttribute('visibility', 'hidden'); });
+}

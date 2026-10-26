@@ -1,9 +1,9 @@
 import * as A from './analysis.js';
-import { h, legend, lineChart, contribChart, mixBars, scatter, dumbbell, swingBar, fmtK, fmtTime, fmtTimeS, showTip, hideTip, dec } from './charts.js';
+import { h, legend, lineChart, contribChart, mixBars, scatter, pollChart, dumbbell, swingBar, fmtK, fmtTime, fmtTimeS, showTip, hideTip, dec } from './charts.js';
 
 const TSE = 'https://resultados.tse.jus.br/oficial/ele2026/6258/dados';
 const LIVE_EVERY = 30e3, AGG_EVERY = 60e3;
-const S = { scope: 'br', r1: null, r2: null, tl: null, fc: null, late: null, live: {}, liveRows: {}, lastLive: 0, lastAgg: 0, sort: { k: 'ts', dir: -1 } };
+const S = { scope: 'br', r1: null, r2: null, tl: null, fc: null, late: null, polls: null, live: {}, liveRows: {}, lastLive: 0, lastAgg: 0, sort: { k: 'ts', dir: -1 } };
 
 const $ = id => document.getElementById(id);
 const nf = new Intl.NumberFormat('pt-BR');
@@ -371,7 +371,7 @@ function renderVirada() {
     }
   }
   const comb = runs.map(r => r.third + r.bn), turn = runs.map(r => r.turnout);
-  $('vrNote').textContent = `Terceira via + brancos/nulos somam ${signedK(Math.min(...comb))} a ${signedK(Math.max(...comb))} (${dec((100 * Math.min(...comb)) / d.total, 0)}–${dec((100 * Math.max(...comb)) / d.total, 0)}% da virada) em todas as variantes do modelo; quem não votou no 1º turno, ${signedK(Math.min(...turn))} a ${signedK(Math.max(...turn))}. A divisão entre terceira via e brancos/nulos é a parte mais incerta: as duas fontes se concentram nos mesmos lugares e o modelo não consegue separá-las bem — juntas, o resultado é robusto.`;
+  $('vrNote').textContent = `A troca direta é a estimativa mais frágil: só a variante por estado encontra eleitores de Flávio que votaram em Lula (cerca de 0,4% deles, no Norte e no Nordeste); as outras duas não encontram troca nenhuma, e nenhuma encontra troca de Lula para Flávio. Terceira via + brancos/nulos somam ${signedK(Math.min(...comb))} a ${signedK(Math.max(...comb))} (${dec((100 * Math.min(...comb)) / d.total, 0)}–${dec((100 * Math.max(...comb)) / d.total, 0)}% da virada) em todas as variantes do modelo; quem não votou no 1º turno, ${signedK(Math.min(...turn))} a ${signedK(Math.max(...turn))}. A divisão entre terceira via e brancos/nulos é a parte mais incerta: as duas fontes se concentram nos mesmos lugares e o modelo não consegue separá-las bem — juntas, o resultado é robusto.`;
 
   // 3) Por área (exato para a margem; divisão pelo modelo por estado).
   if (A.UF[S.scope]) return;
@@ -390,6 +390,46 @@ function renderVirada() {
     h('td', { class: 'num' }, tr, pct(r.total / d.total, 0));
     for (const k of ['third', 'bn', 'turnout', 'swap', 'demob']) h('td', { class: 'num' }, tr, signedK(r[k]));
   }
+}
+
+// Pesquisas × resultado: tendência das pesquisas e destino dos votos segundo os institutos.
+function renderPolls() {
+  const P = S.polls, br = S.live.br || sumStates(A.UFS), fits = nationalFits();
+  if (!P || !br?.L) return;
+  const result = (100 * br.L) / (br.L + br.F);
+  pollChart($('chPolls'), { polls: P.polls, result });
+  const last = P.polls.filter(p => p.end >= '2026-10-21'), avg = last.reduce((s, p) => s + p.v, 0) / last.length;
+  const ahead = P.polls.filter(p => p.v > 50).length;
+  $('pqDesc').textContent = `Das ${P.polls.length} pesquisas divulgadas depois do 1º turno, só ${ahead} mostravam Lula à frente. Na última semana (campo terminando entre 21 e 24/10), a média dava Lula com ${dec(avg, 1)}% dos votos válidos; o resultado foi ${dec(result, 2)}% — um erro de ${dec(result - avg, 1)} p.p. para Lula (${dec(2 * (result - avg), 1)} p.p. na margem). A virada aconteceu em relação às pesquisas também.`;
+  const tb = $('pqTable');
+  tb.replaceChildren();
+  if (!fits) return;
+  const runs = fits.variants.map(([, Tof]) => A.bridge(S.muns, Tof));
+  const share = (src, d) => runs.map(b => src.reduce((s, i) => s + b.flows[i][d], 0) / src.reduce((s, i) => s + b.r1[i], 0));
+  const voters = d => runs.map(b => b.flows[7][d] / (b.flows[7][0] + b.flows[7][1] + b.flows[7][2]));
+  const rng = v => { const a = Math.round(100 * Math.min(...v)), b = Math.round(100 * Math.max(...v)); return a === b ? `${a}` : `${a}–${b}`; };
+  const groups = [
+    ['Terceira via (total)', [2, 3, 4, 5]], ['Augusto Cury', [2]], ['Renan Santos', [3]], ['Ronaldo Caiado', [4]], ['Zema + 6 outros', [5]],
+  ];
+  const hr = h('tr', {}, h('thead', {}, tb));
+  for (const [t, c] of [['Eleitores do 1º turno', ''], ['Pesquisas (Lula × Flávio)', ''], ['Resultado indica (Lula × Flávio)', 'num']]) h('th', { class: c }, hr, t);
+  const body = h('tbody', {}, tb);
+  const row = (nm, polls, res) => {
+    const tr = h('tr', {}, body);
+    h('td', { class: 'name' }, tr, nm);
+    const td = h('td', { class: 'name' }, tr);
+    td.style.whiteSpace = 'normal';
+    if (!polls.length) td.append('—');
+    polls.forEach((c, i) => { if (i) td.append(' · '); h('span', { class: 'muted' }, td, `${c.src} ${c.date}: `); td.append(`${c.L ?? '—'} × ${c.F}`); });
+    h('td', { class: 'num' }, tr, res);
+  };
+  for (const [nm, src] of groups) row(nm, P.cross.filter(c => c.grp === nm), `${rng(share(src, 0))} × ${rng(share(src, 1))}`);
+  row('Quem não votou no 1º turno e foi votar', [], `${rng(voters(0))} × ${rng(voters(1))}`);
+  // Contrafactual: terceira via dividida como na última Quaest, resto igual.
+  const b = runs[0], src = [2, 3, 4, 5], pool = src.reduce((s, i) => s + b.r1[i], 0);
+  const third = src.reduce((s, i) => s + b.flows[i][0] - b.flows[i][1], 0), V = b.total[0] + b.total[1];
+  const cf = b.total[0] - b.total[1] - third + (0.35 - 0.53) * pool;
+  $('pqNote').textContent = `Resultado = estimativa do modelo de transferências (faixa entre as 3 variantes). As pesquisas esperavam que a terceira via favorecesse Flávio por 14 a 18 pontos; o resultado indica uma divisão favorável a Lula. Se a terceira via tivesse se dividido como na última Quaest (35% × 53%), com todo o resto igual, Lula ainda teria vencido, com ~${dec(100 * (0.5 + cf / (2 * V)), 1)}% (margem de ${signedK(cf)} em vez de ${signedK(b.total[0] - b.total[1])}): a surpresa da terceira via explica boa parte do erro das pesquisas, e o comparecimento e os brancos/nulos, o restante. Números das pesquisas segundo manchetes de ${[...new Set(P.cross.map(c => c.via))].join(', ')}; lista de pesquisas: ${P.source}.`;
 }
 
 function renderCompare() {
@@ -704,6 +744,7 @@ function renderScoped() {
     renderTiles(A.compare(scopeMuns(S.scope)));
     renderForecast();
     renderVirada();
+    renderPolls();
     renderCompare();
     renderAbstention();
     renderLate();
@@ -732,6 +773,7 @@ async function boot() {
   const hash = location.hash.slice(1);
   if (hash && (A.UF[hash] || A.REGIONS.some(r => r.id === hash))) S.scope = hash;
   S.r1 = await getJSON('data/r1.json');
+  S.polls = await getJSON('data/polls.json').catch(() => null);
   S.r1Tot = {};
   for (const [key, row] of Object.entries(S.r1.rows)) S.r1Tot[key.slice(0, 2)] = (S.r1Tot[key.slice(0, 2)] || 0) + row[3];
   await Promise.allSettled([loadAgg(), loadLive()]);
